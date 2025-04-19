@@ -1,0 +1,200 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+import { Lightbulb, Plus, Sparkles, PlusCircle } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { DatabaseService } from '@/lib/database-service';
+import { useToast } from '@/hooks/use-toast';
+
+interface Idea {
+  id: string;
+  content: string;
+  createdAt: Date | string;
+}
+
+interface IdeasPanelProps {
+  activeQuery: string;
+  updates?: any[];
+}
+
+export function IdeasPanel({ activeQuery, updates = [] }: IdeasPanelProps) {
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoadingDB, setIsLoadingDB] = useState(true);
+  const { toast } = useToast();
+  
+  // Load initial data from database
+  useEffect(() => {
+    const loadIdeas = async () => {
+      try {
+        setIsLoadingDB(true);
+        const items = await DatabaseService.getIdeas();
+        // Convert database format to component format
+        const formattedIdeas = items.map(item => ({
+          id: item.id,
+          content: item.content,
+          createdAt: item.created_at
+        }));
+        setIdeas(formattedIdeas);
+      } catch (error) {
+        console.error('Error loading ideas:', error);
+      } finally {
+        setIsLoadingDB(false);
+      }
+    };
+    
+    loadIdeas();
+  }, []);
+  
+  // Process updates from GPT-4
+  useEffect(() => {
+    if (!updates?.length) return;
+    
+    setIsUpdating(true);
+    
+    // Process updates from GPT-4 and save to database
+    const processUpdates = async () => {
+      try {
+        // Convert to format expected by database service
+        const ideaUpdates = updates.map(update => ({
+          content: update.content || update.idea || update.text || update.description,
+          title: update.title
+        }));
+        
+        // Save to database
+        await DatabaseService.saveIdeas(ideaUpdates);
+        
+        // Update UI with new items
+        const newIdeas = ideaUpdates.map(update => ({
+          id: Date.now() + Math.random().toString(),
+          content: update.content,
+          createdAt: new Date()
+        }));
+        
+        setIdeas(prev => [...prev, ...newIdeas]);
+        
+        toast({
+          title: "Success",
+          description: `Added ${updates.length} new idea(s)`,
+        });
+      } catch (error) {
+        console.error('Error saving ideas:', error);
+        
+        toast({
+          title: "Error",
+          description: "Failed to save ideas to database",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUpdating(false);
+      }
+    };
+    
+    processUpdates();
+  }, [updates, toast]);
+  
+  // Legacy behavior for backwards compatibility
+  useEffect(() => {
+    if (!activeQuery || updates?.length) return;
+    
+    // Simulate updating ideas based on AI response
+    if (activeQuery.toLowerCase().includes('idea') || 
+        activeQuery.toLowerCase().includes('note') || 
+        activeQuery.toLowerCase().includes('thought') ||
+        activeQuery.toLowerCase().includes('remember')) {
+      setIsUpdating(true);
+      
+      // Simulate delay for AI processing
+      setTimeout(() => {
+        // Generate a new item based on the query
+        let newIdea = "";
+        
+        if (activeQuery.toLowerCase().includes('project')) {
+          newIdea = "Create a project timeline with key milestones and deliverables";
+        } else if (activeQuery.toLowerCase().includes('feature')) {
+          newIdea = "Implement new feature: user preference settings with dark mode toggle";
+        } else if (activeQuery.toLowerCase().includes('blog')) {
+          newIdea = "Write a blog post about the latest industry trends and innovations";
+        } else if (activeQuery.toLowerCase().includes('remember')) {
+          const match = activeQuery.match(/remember\s+(to\s+)?(.+)/i);
+          if (match && match[2]) {
+            newIdea = match[2].trim();
+          } else {
+            newIdea = "Follow up on yesterday's client meeting";
+          }
+        } else {
+          newIdea = "Explore new collaboration tools to improve team communication";
+        }
+        
+        if (newIdea) {
+          setIdeas(prev => [
+            ...prev, 
+            { 
+              id: Date.now().toString(), 
+              content: newIdea, 
+              createdAt: new Date() 
+            }
+          ]);
+        }
+        
+        setIsUpdating(false);
+      }, 1500);
+    }
+  }, [activeQuery, updates]);
+
+  return (
+    <Card className={cn(
+      "h-full border border-border/40 bg-background/60 backdrop-blur-sm transition-all duration-300",
+      "hover:shadow-md flex flex-col",
+      isUpdating && "animate-pulse"
+    )}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-lg font-medium flex items-center gap-2">
+          <Lightbulb className="h-5 w-5" />
+          <span>Ideas</span>
+        </CardTitle>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Plus className="h-4 w-4" />
+          <span className="sr-only">Add idea</span>
+        </Button>
+      </CardHeader>
+      <CardContent className="flex-1 overflow-y-auto pb-6">
+        {ideas.length > 0 ? (
+          <div className="space-y-4">
+            {ideas.map((idea) => (
+              <div 
+                key={idea.id}
+                className={cn(
+                  "p-3 rounded-lg border border-border/50 transition-all",
+                  "hover:bg-muted/50 hover:border-border",
+                  idea.id === ideas[ideas.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
+                )}
+              >
+                <p className="text-sm">{idea.content}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {typeof idea.createdAt === 'string' 
+                    ? new Date(idea.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : idea.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center text-center py-12">
+            <div className="rounded-full bg-primary/10 p-4 mb-4">
+              <Sparkles className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-xl font-medium mb-2">Inspiration awaits</h3>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Chat with the AI to capture your ideas and insights.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
