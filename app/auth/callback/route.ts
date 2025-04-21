@@ -15,28 +15,6 @@ export async function GET(request: NextRequest) {
     
     try {
       await supabase.auth.exchangeCodeForSession(code);
-      
-      // Get the user after exchanging code for session
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // Check if profile exists, if not create it
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-          
-        if (!profile) {
-          // Create profile if it doesn't exist
-          await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-              email: user.email,
-            });
-        }
-      }
     } catch (error) {
       console.error('Error exchanging code for session:', error);
       return NextResponse.redirect(

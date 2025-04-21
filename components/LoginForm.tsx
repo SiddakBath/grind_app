@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { DatabaseService } from '@/lib/database-service';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -26,7 +25,7 @@ export function LoginForm() {
     try {
       if (isSignUp) {
         // Handle sign up
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -35,17 +34,6 @@ export function LoginForm() {
         });
 
         if (error) throw error;
-        
-        // Create user profile in the database
-        if (data?.user) {
-          try {
-            await DatabaseService.createUserProfile(data.user.id, data.user.email || email);
-          } catch (profileError) {
-            console.error('Error creating profile:', profileError);
-            // Continue with sign up even if profile creation fails
-            // We'll handle this error more gracefully later
-          }
-        }
 
         toast({
           title: "Check your email",

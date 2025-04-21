@@ -9,27 +9,6 @@ import { ScheduleUpdate, IdeaUpdate, HabitUpdate } from '@/lib/ai-service';
  */
 export const DatabaseService = {
   /**
-   * Create a new user profile in the database
-   */
-  async createUserProfile(userId: string, email: string): Promise<void> {
-    const supabase = createClientComponentClient();
-    
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          email: email,
-        });
-        
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error creating user profile:', error);
-      throw new Error('Failed to create user profile');
-    }
-  },
-
-  /**
    * Save schedule updates to database
    */
   async saveScheduleItems(updates: ScheduleUpdate[]): Promise<void> {
@@ -60,7 +39,11 @@ export const DatabaseService = {
         if (isPM && hour < 12) hour += 12;
         if (!isPM && hour === 12) hour = 0;
         
-        const timestamp = new Date(year, month - 1, day, hour, minute).toISOString();
+        // First create a date object in the user's local timezone
+        const localDate = new Date(year, month - 1, day, hour, minute);
+        
+        // Convert local time to UTC timestamp for storage
+        const timestamp = localDate.toISOString();
         
         await supabase.from('schedule_items').insert({
           user_id: user.id,
@@ -158,7 +141,13 @@ export const DatabaseService = {
       return (data || []).map(item => {
         // Convert timestamp to date string and time string
         const date = new Date(item.time);
-        const dateStr = date.toISOString().split('T')[0];
+        
+        // Format date for display (YYYY-MM-DD)
+        // Using local date to ensure it shows correctly in user's timezone
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
         
         // Format the time for display (12-hour format)
         let hours = date.getHours();
