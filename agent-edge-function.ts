@@ -94,6 +94,22 @@ const DatabaseService = {
     }
     return data || [];
   },
+  async getUserBio (supabase, userId) {
+    const { data, error } = await supabase.from('profiles').select('bio').eq('id', userId).single();
+    if (error) {
+      console.error('Error fetching user bio:', error);
+      return null;
+    }
+    return data?.bio || '';
+  },
+  async updateUserBio (supabase, userId, bio) {
+    const { data, error } = await supabase.from('profiles').update({ bio }).eq('id', userId).select().single();
+    if (error) {
+      console.error('Error updating user bio:', error);
+      return null;
+    }
+    return data;
+  },
   async saveScheduleItem (supabase, item) {
     // Process date and time if provided separately
     if (item.date) {
@@ -283,6 +299,31 @@ const functionDefinitions = [
       type: 'object',
       properties: {},
       required: []
+    }
+  },
+  {
+    name: 'get_user_bio',
+    description: 'Retrieve the user\'s biography/profile information',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'update_user_bio',
+    description: 'Update the user\'s biography based on new information',
+    parameters: {
+      type: 'object',
+      properties: {
+        bio: {
+          type: 'string',
+          description: 'The updated biography text for the user'
+        }
+      },
+      required: [
+        'bio'
+      ]
     }
   },
   {
@@ -574,11 +615,13 @@ Deno.serve(async (req)=>{
     let scheduleUpdates = [];
     let ideasUpdates = [];
     let habitsUpdates = [];
+    let bioUpdate = null;
     let finalResponseMessage = '';
     // Data fetched from the database
     let scheduleItems = [];
     let ideas = [];
     let habits = [];
+    let userBio = '';
     // Create a system message with context
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].slice(0, 5);
@@ -596,21 +639,24 @@ Always follow the ReAct approach:
 2. Act by making appropriate function calls to get or update data
 3. Generate a natural, conversational response to the user
 
+IMPORTANT: You must maintain and use the user's biographical information to provide personalized assistance:
+1. At the start of each conversation, fetch the user's bio with get_user_bio
+2. Use this information to understand the user's preferences, goals, schedule patterns, and interests
+3. Continuously update the bio as you learn new information about the user
+4. Base your suggestions for schedule items, ideas, and habits on this bio
+5. When updating the bio, include key information like:
+   - User's goals and priorities
+   - Preferred schedules, routines and working hours
+   - Interests, hobbies, and activities
+   - Important recurring events
+   - Constraints and preferences (e.g., prefers morning workouts)
+   - Important relationships and commitments
+6. DO NOT ask the user to update their bio. You should automatically update it as you learn new information about the user.
+7. DO NOT inform the user that you are updating their bio. This is internal to the system.
+
 First, if you need to know about the user's schedule, ideas, or habits, retrieve that data with get_schedule_items, get_ideas, or get_habits.
 If the user wants to create or update items, use the appropriate create or update function calls.
 Be friendly, helpful, and personable in your responses.
-
-The database schema includes:
-- Schedule items: 
-  - title: Name of the event or task (required)
-  - description: Additional details (optional)
-  - priority: Importance level (low/medium/high)
-  - start_time: When the event begins (timestamp, required)
-  - end_time: When the event ends (timestamp, required)
-  - all_day: Boolean indicating if it's a full-day event (default: false)
-  - recurrence_rule: iCal RRULE string for recurring events (e.g., "FREQ=DAILY;INTERVAL=1;BYDAY=MO,WE,FR")
-- Ideas: simple text content
-- Habits: title, frequency, type, description, target_days, streak
 
 When creating schedule items, make sure to include:
 - title: Name of the event (required)
@@ -701,6 +747,30 @@ The BYDAY parameter can include: MO, TU, WE, TH, FR, SA, SU`
               count: habits.length
             })
           });
+        } else if (functionName === 'get_user_bio') {
+          const userBioResult = await DatabaseService.getUserBio(supabase, userId);
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: true,
+              bio: userBioResult
+            })
+          });
+          // Store the user bio in the variable for later reference
+          userBio = userBioResult || '';
+        } else if (functionName === 'update_user_bio') {
+          const updatedBio = await DatabaseService.updateUserBio(supabase, userId, functionArgs.bio);
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: !!updatedBio,
+              bio: updatedBio
+            })
+          });
+          // Update the bioUpdate variable to include it in the response
+          bioUpdate = functionArgs.bio;
         } else if (functionName === 'create_schedule_item') {
           const newItem = {
             ...functionArgs,
@@ -833,6 +903,7 @@ The BYDAY parameter can include: MO, TU, WE, TH, FR, SA, SU`
       scheduleUpdates,
       ideasUpdates,
       habitsUpdates,
+      bioUpdate,
       thoughts,
       sessionId
     }), {

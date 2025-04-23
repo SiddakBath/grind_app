@@ -448,5 +448,64 @@ export const DatabaseService = {
       console.error('Error deleting idea:', error);
       throw new Error('Failed to delete idea');
     }
-  }
+  },
+  
+  /**
+   * Get user's biography from profiles table
+   */
+  async getUserBio(): Promise<string> {
+    const supabase = createClientComponentClient();
+    
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('bio')
+        .eq('id', user.id)
+        .single();
+        
+      if (error) {
+        console.error('Error fetching user bio:', error);
+        return '';
+      }
+      
+      return data?.bio || '';
+    } catch (error) {
+      console.error('Error fetching user bio:', error);
+      return '';
+    }
+  },
+  
+  /**
+   * Update user's biography in profiles table
+   */
+  async updateUserBio(bio: string): Promise<void> {
+    const supabase = createClientComponentClient();
+    
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ bio })
+        .eq('id', user.id);
+        
+      if (error) {
+        console.error('Error updating user bio:', error);
+        throw new Error('Failed to update user bio');
+      }
+    } catch (error) {
+      console.error('Error updating user bio:', error);
+      throw new Error('Failed to update user bio');
+    }
+  },
 }; 

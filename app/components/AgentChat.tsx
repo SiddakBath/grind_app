@@ -313,12 +313,132 @@ export default function AgentChat({ className }: AgentChatProps) {
   };
 
   // Format function response for display
-  const formatFunctionResponse = (content: string) => {
+  const formatFunctionResponse = (content: string, functionName?: string): React.ReactNode => {
     try {
       const data = JSON.parse(content);
-      return JSON.stringify(data, null, 2);
+      
+      // Handle schedule items
+      if (functionName?.includes('schedule') && data.scheduleItems) {
+        // Helper to format time more readably
+        const formatTime = (timeStr: string) => {
+          if (!timeStr) return '';
+          // Return without AM/PM for brevity if it exists
+          return timeStr.replace(/\s+[AP]M/i, '');
+        };
+        
+        return (
+          <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+            <div className="font-medium text-sm">Retrieved {data.count} schedule item{data.count !== 1 ? 's' : ''}</div>
+            {data.scheduleItems.length > 0 ? (
+              <div className="space-y-1">
+                {data.scheduleItems.map((item: any, i: number) => (
+                  <div key={i} className="bg-black/5 p-1.5 rounded-sm text-xs mt-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-sm">{item.title}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {item.date} • {formatTime(item.start_time)}-{formatTime(item.end_time)}
+                      </span>
+                    </div>
+                    {item.recurring && (
+                      <div className="text-blue-500 dark:text-blue-400 text-xs mt-0.5">
+                        Recurring: {item.repeat_days ? item.repeat_days.join(', ') : 'Daily'}
+                      </div>
+                    )}
+                    {item.description && <div className="text-xs italic mt-0.5">{item.description}</div>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No scheduled items found</div>
+            )}
+          </div>
+        );
+      }
+      
+      // Handle ideas
+      if (functionName?.includes('idea') && data.ideas) {
+        return (
+          <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+            <div className="font-medium text-sm">Retrieved {data.count} idea{data.count !== 1 ? 's' : ''}</div>
+            {data.ideas?.length > 0 ? (
+              <div className="space-y-1">
+                {data.ideas.map((idea: any, i: number) => (
+                  <div key={i} className="bg-black/5 p-1.5 rounded-sm text-xs mt-1">
+                    <div className="text-sm">{idea.content}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No ideas found</div>
+            )}
+          </div>
+        );
+      }
+      
+      // Handle habits
+      if (functionName?.includes('habit') && data.habits) {
+        return (
+          <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+            <div className="font-medium text-sm">Retrieved {data.count} habit{data.count !== 1 ? 's' : ''}</div>
+            {data.habits?.length > 0 ? (
+              <div className="space-y-1">
+                {data.habits.map((habit: any, i: number) => (
+                  <div key={i} className="bg-black/5 p-1.5 rounded-sm text-xs mt-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-sm">{habit.title}</span>
+                      <span className="text-muted-foreground text-xs">{habit.frequency} {habit.streak > 0 && `• 🔥 ${habit.streak} day streak`}</span>
+                    </div>
+                    {habit.target_days && habit.target_days.length > 0 && (
+                      <div className="text-xs mt-0.5">
+                        Days: {habit.target_days.join(', ')}
+                      </div>
+                    )}
+                    {habit.description && <div className="text-xs italic mt-0.5">{habit.description}</div>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No habits found</div>
+            )}
+          </div>
+        );
+      }
+      
+      // Handle single item operations
+      if (data.item || data.idea || data.habit) {
+        const item = data.item || data.idea || data.habit;
+        const itemType = data.item ? 'Schedule item' : data.idea ? 'Idea' : 'Habit';
+        
+        return (
+          <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2">
+            <div className="text-sm text-green-600 dark:text-green-400">
+              {data.success ? `✓ ${itemType} successfully ${item.id ? 'updated' : 'created'}` : `✗ Failed to ${item.id ? 'update' : 'create'} ${itemType.toLowerCase()}`}
+            </div>
+            {data.success && (
+              <div className="text-xs text-muted-foreground">
+                ID: {item.id}
+              </div>
+            )}
+          </div>
+        );
+      }
+      
+      // For other function responses or fallback
+      return (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2">
+          {data.success !== undefined && (
+            <div className={`text-sm ${data.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              {data.success ? '✓ Operation successful' : '✗ Operation failed'}
+            </div>
+          )}
+          <div className="text-xs font-mono overflow-x-auto">
+            {JSON.stringify(data, null, 2)}
+          </div>
+        </div>
+      );
     } catch (e) {
-      return content;
+      // If parsing fails, return the original content as text
+      return <span>{content}</span>;
     }
   };
 
@@ -361,32 +481,32 @@ export default function AgentChat({ className }: AgentChatProps) {
                   "mb-4 p-3 rounded-lg",
                   msg.role === 'user' 
                     ? "bg-primary/10 ml-8" 
-                    : msg.role === 'function'
-                    ? "bg-muted ml-12 border border-muted-foreground/20"
                     : "bg-secondary/10 mr-8"
                 )}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-semibold">
-                    {msg.role === 'user' 
-                      ? 'You' 
-                      : msg.role === 'function' 
-                      ? <span className="flex items-center">
-                          <Code2 className="h-3 w-3 mr-1" />
-                          Function: <span className="font-mono ml-1">{msg.name}</span>
-                        </span> 
-                      : 'Assistant'
-                    }
-                  </p>
-                  <p className="text-xs opacity-70">
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold">
+                      {msg.role === 'user' 
+                        ? 'You' 
+                        : msg.role === 'function' 
+                        ? <span className="flex items-center">
+                            <Code2 className="h-3 w-3 mr-1" />
+                            {msg.name && msg.name.replace(/_/g, ' ')}
+                          </span> 
+                        : 'Assistant'
+                      }
+                    </p>
+                    <p className="text-xs opacity-70">
+                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
                 </div>
                 
                 {msg.role === 'function' ? (
-                  <pre className="text-xs font-mono bg-black/5 p-2 rounded-md overflow-x-auto">
-                    {formatFunctionResponse(msg.content)}
-                  </pre>
+                  <div className="text-sm">
+                    {formatFunctionResponse(msg.content, msg.name)}
+                  </div>
                 ) : (
                   <>
                     <p className="text-base whitespace-pre-wrap">{msg.content}</p>

@@ -14,6 +14,7 @@ export interface AgentResponse {
   scheduleUpdates: ScheduleUpdate[];
   ideasUpdates: IdeaUpdate[];
   habitsUpdates: HabitUpdate[];
+  bioUpdate?: string;
   thoughts?: string;
   sessionId: string;
 }
@@ -147,6 +148,15 @@ export const AIService = {
           await DatabaseService.saveHabits(data.habitsUpdates);
         } catch (error) {
           console.error('Error saving habit updates:', error);
+        }
+      }
+      
+      if (data.bioUpdate) {
+        try {
+          // Apply bio update to database
+          await DatabaseService.updateUserBio(data.bioUpdate);
+        } catch (error) {
+          console.error('Error saving bio update:', error);
         }
       }
       
