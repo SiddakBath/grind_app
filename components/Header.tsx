@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Bell, AlarmClock, LogOut, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const supabase = createClientComponentClient();
   
@@ -47,10 +49,17 @@ export function Header() {
     }`}>
       <div className="container max-w-6xl h-16 mx-auto flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">
-            MyGrind.ai
-          </span>
+          <Link href="/">
+            <span className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">
+              MyGrind.ai
+            </span>
+          </Link>
         </div>
+        <nav className="hidden md:flex items-center gap-4">
+          <Link href="/" className={`px-3 py-2 rounded-md ${pathname === '/' ? 'font-medium text-primary' : 'text-muted-foreground hover:text-primary'}`}>
+            Dashboard
+          </Link>
+        </nav>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />

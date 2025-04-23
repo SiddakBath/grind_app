@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Lightbulb, Plus, Sparkles, PlusCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DatabaseService } from '@/lib/database-service';
 import { useToast } from '@/hooks/use-toast';
+import { EVENTS } from '@/app/supabase-provider';
 
 interface Idea {
   id: string;
@@ -27,28 +28,53 @@ export function IdeasPanel({ activeQuery, updates = [] }: IdeasPanelProps) {
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const { toast } = useToast();
   
+  // Function to load ideas from database
+  const loadIdeas = useCallback(async () => {
+    try {
+      setIsLoadingDB(true);
+      const items = await DatabaseService.getIdeas();
+      // Convert database format to component format
+      const formattedIdeas = items.map(item => ({
+        id: item.id,
+        content: item.content,
+        createdAt: item.created_at
+      }));
+      setIdeas(formattedIdeas);
+    } catch (error) {
+      console.error('Error loading ideas:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh ideas",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingDB(false);
+    }
+  }, [toast]);
+  
   // Load initial data from database
   useEffect(() => {
-    const loadIdeas = async () => {
-      try {
-        setIsLoadingDB(true);
-        const items = await DatabaseService.getIdeas();
-        // Convert database format to component format
-        const formattedIdeas = items.map(item => ({
-          id: item.id,
-          content: item.content,
-          createdAt: item.created_at
-        }));
-        setIdeas(formattedIdeas);
-      } catch (error) {
-        console.error('Error loading ideas:', error);
-      } finally {
-        setIsLoadingDB(false);
-      }
-    };
-    
     loadIdeas();
-  }, []);
+  }, [loadIdeas]);
+  
+  // Handle real-time updates
+  const handleRealtimeUpdate = useCallback(() => {
+    console.log('Ideas updated, refreshing data...');
+    loadIdeas().catch(err => {
+      console.error('Error refreshing ideas data:', err);
+    });
+  }, [loadIdeas]);
+  
+  // Listen for real-time updates
+  useEffect(() => {
+    // Add event listener for real-time updates
+    window.addEventListener(EVENTS.IDEAS_UPDATED, handleRealtimeUpdate);
+    
+    // Clean up event listener
+    return () => {
+      window.removeEventListener(EVENTS.IDEAS_UPDATED, handleRealtimeUpdate);
+    };
+  }, [handleRealtimeUpdate]);
   
   // Process updates from GPT-4
   useEffect(() => {

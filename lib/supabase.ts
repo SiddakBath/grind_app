@@ -23,15 +23,19 @@ export type ScheduleItem = {
   id: string;
   user_id: string;
   title: string;
-  time: string;
-  date?: string;
-  description?: string;
-  priority: 'high' | 'medium' | 'low';
-  duration?: number; // Duration in minutes
-  recurring?: 'daily' | 'weekly' | 'monthly' | null;
-  repeat_days?: DayOfWeek[]; // Specific days to repeat on
+  description: string | null;
+  priority: 'low' | 'medium' | 'high' | null;
+  start_time: string;  // Timestamp with timezone
+  end_time: string;    // Timestamp with timezone
+  all_day: boolean;
+  recurrence_rule: string | null;  // iCal RRULE format
   created_at: string;
   updated_at: string;
+  
+  // Computed fields for display purposes
+  date?: string;         // YYYY-MM-DD format
+  start_time_display?: string;  // HH:MM AM/PM format
+  end_time_display?: string;    // HH:MM AM/PM format
 };
 
 export type Idea = {

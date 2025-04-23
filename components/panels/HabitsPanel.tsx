@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Activity, ExternalLink, Calendar, CheckCircle, Zap, BarChart } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DatabaseService } from '@/lib/database-service';
 import { useToast } from '@/hooks/use-toast';
+import { EVENTS } from '@/app/supabase-provider';
 
 interface Habit {
   id: string;
@@ -27,41 +28,66 @@ export function HabitsPanel({ activeQuery, updates = [] }: HabitsPanelProps) {
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const { toast } = useToast();
   
+  // Function to load habits from database
+  const loadHabits = useCallback(async () => {
+    try {
+      setIsLoadingDB(true);
+      const items = await DatabaseService.getHabits();
+      
+      // Convert database format to component format (parsing [HABIT] format)
+      const formattedHabits = items.map(item => {
+        // Parse the habit content from the format: [HABIT] Title - Frequency: Daily, Type: daily
+        const content = item.content.replace('[HABIT] ', '');
+        const titleMatch = content.match(/^(.+?)(?: - Frequency:|$)/);
+        const freqMatch = content.match(/Frequency: ([^,]+)/);
+        const typeMatch = content.match(/Type: (\w+)/);
+        
+        return {
+          id: item.id,
+          title: titleMatch ? titleMatch[1].trim() : "Untitled Habit",
+          frequency: freqMatch ? freqMatch[1].trim() : "Daily",
+          type: (typeMatch && ['daily', 'weekly', 'monthly'].includes(typeMatch[1].trim().toLowerCase())) 
+            ? typeMatch[1].trim().toLowerCase() as 'daily' | 'weekly' | 'monthly'
+            : 'daily'
+        };
+      });
+      
+      setHabits(formattedHabits);
+    } catch (error) {
+      console.error('Error loading habits:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh habits",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingDB(false);
+    }
+  }, [toast]);
+  
   // Load initial data from database
   useEffect(() => {
-    const loadHabits = async () => {
-      try {
-        setIsLoadingDB(true);
-        const items = await DatabaseService.getHabits();
-        
-        // Convert database format to component format (parsing [HABIT] format)
-        const formattedHabits = items.map(item => {
-          // Parse the habit content from the format: [HABIT] Title - Frequency: Daily, Type: daily
-          const content = item.content.replace('[HABIT] ', '');
-          const titleMatch = content.match(/^(.+?)(?: - Frequency:|$)/);
-          const freqMatch = content.match(/Frequency: ([^,]+)/);
-          const typeMatch = content.match(/Type: (\w+)/);
-          
-          return {
-            id: item.id,
-            title: titleMatch ? titleMatch[1].trim() : "Untitled Habit",
-            frequency: freqMatch ? freqMatch[1].trim() : "Daily",
-            type: (typeMatch && ['daily', 'weekly', 'monthly'].includes(typeMatch[1].trim().toLowerCase())) 
-              ? typeMatch[1].trim().toLowerCase() as 'daily' | 'weekly' | 'monthly'
-              : 'daily'
-          };
-        });
-        
-        setHabits(formattedHabits);
-      } catch (error) {
-        console.error('Error loading habits:', error);
-      } finally {
-        setIsLoadingDB(false);
-      }
-    };
-    
     loadHabits();
-  }, []);
+  }, [loadHabits]);
+  
+  // Handle real-time updates
+  const handleRealtimeUpdate = useCallback(() => {
+    console.log('Habits updated, refreshing data...');
+    loadHabits().catch(err => {
+      console.error('Error refreshing habits data:', err);
+    });
+  }, [loadHabits]);
+  
+  // Listen for real-time updates
+  useEffect(() => {
+    // Add event listener for real-time updates
+    window.addEventListener(EVENTS.HABITS_UPDATED, handleRealtimeUpdate);
+    
+    // Clean up event listener
+    return () => {
+      window.removeEventListener(EVENTS.HABITS_UPDATED, handleRealtimeUpdate);
+    };
+  }, [handleRealtimeUpdate]);
   
   // Process updates from GPT-4
   useEffect(() => {

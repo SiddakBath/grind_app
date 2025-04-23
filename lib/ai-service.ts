@@ -3,73 +3,160 @@
  * Communicates with the server-side API endpoint to keep API keys secure
  */
 
-import { DayOfWeek } from '@/lib/supabase';
+'use client';
+
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { DatabaseService } from '@/lib/database-service';
+
+// Types for API responses and requests
+export interface AgentResponse {
+  message: string;
+  scheduleUpdates: ScheduleUpdate[];
+  ideasUpdates: IdeaUpdate[];
+  habitsUpdates: HabitUpdate[];
+  thoughts?: string;
+  sessionId: string;
+}
+
+export interface AgentRequest {
+  query: string;
+  userId: string;
+  chatHistory: ChatMessage[];
+  sessionId: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system' | 'function';
+  content: string;
+  name?: string;
+  function_call?: {
+    name: string;
+    arguments: string;
+  };
+}
 
 export interface ScheduleUpdate {
+  id?: string;
+  user_id?: string;
   title: string;
-  date: string;
-  time: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  duration?: number; // Duration in minutes
-  recurring?: 'daily' | 'weekly' | 'monthly' | null;
-  repeat_days?: DayOfWeek[]; // Specific days to repeat on
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  date?: string;  // Date representation YYYY-MM-DD
+  start_time?: string;  // Time representation (e.g., "3:00 PM")
+  end_time?: string;  // Time representation (e.g., "4:00 PM")
+  all_day?: boolean;  // Whether it's an all-day event
+  recurrence_rule?: string;  // iCal RRULE string
+  
+  // Legacy fields - kept for backward compatibility
+  time?: string; 
+  duration?: number;
+  recurring?: boolean;
+  repeat_days?: string[];
+  frequency?: string;
+  interval?: number;
 }
 
 export interface IdeaUpdate {
-  title?: string;
+  id?: string;
+  user_id?: string;
   content: string;
 }
 
 export interface HabitUpdate {
+  id?: string;
+  user_id?: string;
   title: string;
+  description?: string;
   frequency?: string;
-  type?: 'daily' | 'weekly' | 'monthly';
+  type?: string;
+  target_days?: string[];
+  streak?: number;
 }
 
-type AIResponse = {
-  message: string;
-  scheduleUpdates?: ScheduleUpdate[];
-  ideasUpdates?: IdeaUpdate[];
-  habitsUpdates?: HabitUpdate[];
-};
-
-type APIErrorResponse = {
-  error: string;
-};
-
-/**
- * Get response from GPT-4 for user queries via server API
- */
-export async function getAiResponse(query: string): Promise<AIResponse> {
-  try {
-    const response = await fetch('/api/ai', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json() as APIErrorResponse;
-      throw new Error(errorData.error || `API request failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
+// AI Service for communicating with the edge function
+export const AIService = {
+  /**
+   * Send a query to the AI agent and return its response
+   */
+  async sendQuery(
+    query: string,
+    chatHistory: ChatMessage[],
+    sessionId: string
+  ): Promise<AgentResponse> {
+    const supabase = createClientComponentClient();
     
-    // Validate the response structure
-    return {
-      message: typeof data.message === 'string' ? data.message : "I've processed your request.",
-      scheduleUpdates: Array.isArray(data.scheduleUpdates) ? data.scheduleUpdates : [],
-      ideasUpdates: Array.isArray(data.ideasUpdates) ? data.ideasUpdates : [],
-      habitsUpdates: Array.isArray(data.habitsUpdates) ? data.habitsUpdates : []
-    };
-  } catch (error) {
-    console.error('Error calling AI API:', error);
-    throw new Error(error instanceof Error ? error.message : 'Failed to get AI response');
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    try {
+      // Get session for the token
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) {
+        throw new Error('No valid session token');
+      }
+      
+      // Call the edge function
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/app-agent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          query,
+          userId: user.id,
+          chatHistory,
+          sessionId
+        } as AgentRequest)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get agent response');
+      }
+      
+      const data = await response.json();
+      
+      // Process the data if needed (e.g., handle date/time conversions)
+      if (data.scheduleUpdates?.length > 0) {
+        try {
+          // Apply schedule updates to database
+          await DatabaseService.saveScheduleItems(data.scheduleUpdates);
+        } catch (error) {
+          console.error('Error saving schedule updates:', error);
+        }
+      }
+      
+      if (data.ideasUpdates?.length > 0) {
+        try {
+          // Apply idea updates to database
+          await DatabaseService.saveIdeas(data.ideasUpdates);
+        } catch (error) {
+          console.error('Error saving idea updates:', error);
+        }
+      }
+      
+      if (data.habitsUpdates?.length > 0) {
+        try {
+          // Apply habit updates to database
+          await DatabaseService.saveHabits(data.habitsUpdates);
+        } catch (error) {
+          console.error('Error saving habit updates:', error);
+        }
+      }
+      
+      return data as AgentResponse;
+    } catch (error) {
+      console.error('Error in AI Service:', error);
+      throw error;
+    }
   }
-}
+};
 
 /**
  * Legacy simulation function - keeping for fallback

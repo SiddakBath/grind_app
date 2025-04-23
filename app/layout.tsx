@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster } from '@/components/ui/toaster';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import SupabaseProvider from './supabase-provider';
 
 // Force dynamic rendering for layout with auth
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,8 @@ export default async function RootLayout({
 }) {
   const cookieStore = cookies();
   const supabase = createServerComponentClient({ cookies: () => cookieStore });
+  
+  // Get session from the server - this is secure as it's done on the server side
   const { data: { session } } = await supabase.auth.getSession();
 
   return (
@@ -34,7 +37,9 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <SupabaseProvider initialSession={session}>
+            {children}
+          </SupabaseProvider>
           <Toaster />
         </ThemeProvider>
       </body>
