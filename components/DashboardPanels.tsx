@@ -80,8 +80,8 @@ export function DashboardPanels() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 min-h-[600px]">
-      <div className={`${panelClasses} border border-blue-300/50 dark:border-blue-500/50 shadow-blue-300/70 hover:shadow-blue-400/80`}>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 min-h-[600px] w-full">
+      <div className={`${panelClasses} border border-blue-300/50 dark:border-blue-500/50 shadow-blue-300/70 hover:shadow-blue-400/80 w-full`}>
         <SchedulePanel 
           activeQuery={activeQuery} 
           updates={categoryData.scheduleUpdates}
@@ -89,7 +89,7 @@ export function DashboardPanels() {
           isExpanded={false}
         />
       </div>
-      <div className={`${panelClasses} border border-purple-300/50 dark:border-purple-500/50 shadow-purple-300/70 hover:shadow-purple-400/80`}>
+      <div className={`${panelClasses} border border-purple-300/50 dark:border-purple-500/50 shadow-purple-300/70 hover:shadow-purple-400/80 w-full`}>
         <IdeasPanel 
           activeQuery={activeQuery} 
           updates={categoryData.ideasUpdates}
@@ -97,7 +97,7 @@ export function DashboardPanels() {
           isExpanded={false}
         />
       </div>
-      <div className={`${panelClasses} border border-green-300/50 dark:border-green-500/50 shadow-green-300/70 hover:shadow-green-400/80`}>
+      <div className={`${panelClasses} border border-green-300/50 dark:border-green-500/50 shadow-green-300/70 hover:shadow-green-400/80 w-full`}>
         <HabitsPanel 
           activeQuery={activeQuery} 
           updates={categoryData.habitsUpdates}

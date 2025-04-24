@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSupabase } from '@/app/supabase-provider';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Loader2, SendIcon, RefreshCwIcon, Code2, ArrowRight, MessageSquare } from 'lucide-react';
+import { Loader2, SendIcon, RefreshCwIcon, Code2, ArrowRight, MessageSquare, Wrench, Bot, Brain, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -177,12 +177,16 @@ export default function AgentChat({ className }: AgentChatProps) {
       if (data.thoughts) {
         // Parse the thoughts string to extract any function calls
         const thoughtsStr = data.thoughts;
+        
+        // Improved regex to better match function calls in the thoughts
         const functionCallMatch = thoughtsStr.match(/function_call":\s*{([^}]+)}/);
         
         if (functionCallMatch) {
           try {
             // Try to parse the function call from the thoughts
             const functionCallString = `{${functionCallMatch[1]}}`;
+            
+            // Improved regex to handle property names with or without quotes
             const parsedCall = JSON.parse(functionCallString.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":'));
             
             if (parsedCall.name) {
@@ -192,6 +196,9 @@ export default function AgentChat({ className }: AgentChatProps) {
                   ? JSON.parse(parsedCall.arguments) 
                   : parsedCall.arguments
               };
+              
+              // Log the extracted function call for debugging
+              console.log('Extracted function call:', functionCall);
             }
           } catch (e) {
             console.error('Error parsing function call from thoughts:', e);
@@ -210,19 +217,66 @@ export default function AgentChat({ className }: AgentChatProps) {
       
       const newMessages: Message[] = [agentMessage];
       
+      // Include GET function responses in the messages
+      if (data.scheduleItems) {
+        const scheduleMessage: Message = {
+          id: generateId(),
+          role: 'function',
+          name: 'get_schedule_items',
+          content: JSON.stringify({ 
+            success: true, 
+            scheduleItems: data.scheduleItems,
+            count: data.scheduleItems.length || 0
+          }),
+          timestamp: new Date()
+        };
+        newMessages.push(scheduleMessage);
+      }
+      
+      if (data.ideas) {
+        const ideasMessage: Message = {
+          id: generateId(),
+          role: 'function',
+          name: 'get_ideas',
+          content: JSON.stringify({ 
+            success: true, 
+            ideas: data.ideas,
+            count: data.ideas.length || 0
+          }),
+          timestamp: new Date()
+        };
+        newMessages.push(ideasMessage);
+      }
+      
+      if (data.habits) {
+        const habitsMessage: Message = {
+          id: generateId(),
+          role: 'function',
+          name: 'get_habits',
+          content: JSON.stringify({ 
+            success: true, 
+            habits: data.habits,
+            count: data.habits.length || 0
+          }),
+          timestamp: new Date()
+        };
+        newMessages.push(habitsMessage);
+      }
+      
       // If we have any function responses, add them to the messages
       if (data.scheduleUpdates?.length > 0 || 
           data.ideasUpdates?.length > 0 || 
-          data.habitsUpdates?.length > 0) {
+          data.habitsUpdates?.length > 0 ||
+          data.scheduleDeletions?.length > 0 ||
+          data.ideasDeletions?.length > 0 ||
+          data.habitsDeletions?.length > 0) {
         
         // For each type of update, create a function response message
         if (data.scheduleUpdates?.length > 0) {
           const scheduleMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: functionCall?.name?.includes('schedule') 
-              ? functionCall.name 
-              : 'get_schedule_items',
+            name: functionCall?.name || 'create_schedule_item',
             content: JSON.stringify({ 
               success: true, 
               scheduleItems: data.scheduleUpdates,
@@ -240,9 +294,7 @@ export default function AgentChat({ className }: AgentChatProps) {
           const ideasMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: functionCall?.name?.includes('idea') 
-              ? functionCall.name 
-              : 'get_ideas',
+            name: functionCall?.name || 'create_idea',
             content: JSON.stringify({ 
               success: true, 
               ideas: data.ideasUpdates,
@@ -260,9 +312,7 @@ export default function AgentChat({ className }: AgentChatProps) {
           const habitsMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: functionCall?.name?.includes('habit') 
-              ? functionCall.name 
-              : 'get_habits',
+            name: functionCall?.name || 'create_habit',
             content: JSON.stringify({ 
               success: true, 
               habits: data.habitsUpdates,
@@ -271,6 +321,61 @@ export default function AgentChat({ className }: AgentChatProps) {
             timestamp: new Date()
           };
           newMessages.push(habitsMessage);
+          
+          // Dispatch real-time update event
+          window.dispatchEvent(new CustomEvent(EVENTS.HABITS_UPDATED));
+        }
+        
+        // Handle deletions
+        if (data.scheduleDeletions?.length > 0) {
+          const scheduleDeletionMessage: Message = {
+            id: generateId(),
+            role: 'function',
+            name: 'delete_schedule_item',
+            content: JSON.stringify({ 
+              success: true, 
+              deletedIds: data.scheduleDeletions,
+              count: data.scheduleDeletions.length
+            }),
+            timestamp: new Date()
+          };
+          newMessages.push(scheduleDeletionMessage);
+          
+          // Dispatch real-time update event
+          window.dispatchEvent(new CustomEvent(EVENTS.SCHEDULE_UPDATED));
+        }
+        
+        if (data.ideasDeletions?.length > 0) {
+          const ideasDeletionMessage: Message = {
+            id: generateId(),
+            role: 'function',
+            name: 'delete_idea',
+            content: JSON.stringify({ 
+              success: true, 
+              deletedIds: data.ideasDeletions,
+              count: data.ideasDeletions.length
+            }),
+            timestamp: new Date()
+          };
+          newMessages.push(ideasDeletionMessage);
+          
+          // Dispatch real-time update event
+          window.dispatchEvent(new CustomEvent(EVENTS.IDEAS_UPDATED));
+        }
+        
+        if (data.habitsDeletions?.length > 0) {
+          const habitsDeletionMessage: Message = {
+            id: generateId(),
+            role: 'function',
+            name: 'delete_habit',
+            content: JSON.stringify({ 
+              success: true, 
+              deletedIds: data.habitsDeletions,
+              count: data.habitsDeletions.length
+            }),
+            timestamp: new Date()
+          };
+          newMessages.push(habitsDeletionMessage);
           
           // Dispatch real-time update event
           window.dispatchEvent(new CustomEvent(EVENTS.HABITS_UPDATED));
@@ -314,7 +419,13 @@ export default function AgentChat({ className }: AgentChatProps) {
     return Object.entries(args)
       .map(([key, value]) => {
         if (typeof value === 'object' && value !== null) {
-          return `${key}: ${JSON.stringify(value)}`;
+          // Format arrays and objects more readably
+          if (Array.isArray(value)) {
+            if (value.length === 0) return `${key}: []`;
+            if (value.length > 3) return `${key}: [${value.length} items]`;
+            return `${key}: [${value.map(v => typeof v === 'object' ? '...' : v).join(', ')}]`;
+          }
+          return `${key}: {...}`;
         }
         return `${key}: ${value}`;
       })
@@ -331,13 +442,21 @@ export default function AgentChat({ className }: AgentChatProps) {
         // Helper to format time more readably
         const formatTime = (timeStr: string) => {
           if (!timeStr) return '';
-          // Return without AM/PM for brevity if it exists
-          return timeStr.replace(/\s+[AP]M/i, '');
+          
+          // Parse the ISO date string
+          const date = new Date(timeStr);
+          
+          // Format time in 12-hour format with AM/PM
+          return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          });
         };
         
         return (
           <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
-            <div className="font-medium text-sm">Retrieved {data.count} schedule item{data.count !== 1 ? 's' : ''}</div>
+            <div className="font-medium text-sm">{data.count} schedule item{data.count !== 1 ? 's' : ''}</div>
             {data.scheduleItems.length > 0 ? (
               <div className="space-y-1">
                 {data.scheduleItems.map((item: any, i: number) => (
@@ -345,7 +464,7 @@ export default function AgentChat({ className }: AgentChatProps) {
                     <div className="flex justify-between items-center">
                       <span className="font-medium text-sm">{item.title}</span>
                       <span className="text-muted-foreground text-xs">
-                        {item.date} • {formatTime(item.start_time)}-{formatTime(item.end_time)}
+                        • {formatTime(item.start_time)}-{formatTime(item.end_time)}
                       </span>
                     </div>
                     {item.recurring && (
@@ -368,7 +487,7 @@ export default function AgentChat({ className }: AgentChatProps) {
       if (functionName?.includes('idea') && data.ideas) {
         return (
           <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
-            <div className="font-medium text-sm">Retrieved {data.count} idea{data.count !== 1 ? 's' : ''}</div>
+            <div className="font-medium text-sm">{data.count} idea{data.count !== 1 ? 's' : ''}</div>
             {data.ideas?.length > 0 ? (
               <div className="space-y-1">
                 {data.ideas.map((idea: any, i: number) => (
@@ -388,7 +507,7 @@ export default function AgentChat({ className }: AgentChatProps) {
       if (functionName?.includes('habit') && data.habits) {
         return (
           <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
-            <div className="font-medium text-sm">Retrieved {data.count} habit{data.count !== 1 ? 's' : ''}</div>
+            <div className="font-medium text-sm">{data.count} habit{data.count !== 1 ? 's' : ''}</div>
             {data.habits?.length > 0 ? (
               <div className="space-y-1">
                 {data.habits.map((habit: any, i: number) => (
@@ -409,6 +528,31 @@ export default function AgentChat({ className }: AgentChatProps) {
             ) : (
               <div className="text-xs text-muted-foreground">No habits found</div>
             )}
+          </div>
+        );
+      }
+      
+      // Handle deletion responses
+      if (functionName?.includes('delete') && data.deletedIds) {
+        const itemType = functionName.includes('schedule') 
+          ? 'Schedule item' 
+          : functionName.includes('idea') 
+            ? 'Idea' 
+            : 'Habit';
+            
+        return (
+          <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+            <div className="font-medium text-sm text-red-600 dark:text-red-400">
+              Deleted {data.count} {itemType.toLowerCase()}{data.count !== 1 ? 's' : ''}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {data.deletedNames && data.deletedNames.length > 0 
+                ? data.deletedNames.map((name: string, i: number) => (
+                    <div key={i} className="mt-1">• {name}</div>
+                  ))
+                : `${data.count} item${data.count !== 1 ? 's' : ''} removed`
+              }
+            </div>
           </div>
         );
       }
@@ -461,6 +605,47 @@ export default function AgentChat({ className }: AgentChatProps) {
     }
   };
 
+  // Format function name to be more natural
+  const formatFunctionName = (name: string): string => {
+    // Replace underscores with spaces
+    const withSpaces = name.replace(/_/g, ' ');
+    
+    // Handle common function prefixes
+    if (withSpaces.startsWith('create ')) {
+      return `Added ${withSpaces.substring(7)}`;
+    } else if (withSpaces.startsWith('delete ')) {
+      return `Removed ${withSpaces.substring(7)}`;
+    } else if (withSpaces.startsWith('get ')) {
+      return `Retrieved ${withSpaces.substring(4)}`;
+    } else if (withSpaces.startsWith('update ')) {
+      return `Updated ${withSpaces.substring(7)}`;
+    }
+    
+    // Capitalize first letter of each word
+    return withSpaces
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // Format message content to handle bold text with ** **
+  const formatMessageContent = (content: string): React.ReactNode => {
+    if (!content.includes('**')) {
+      return content;
+    }
+
+    const parts = content.split(/(\*\*.*?\*\*)/g);
+    
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        // Remove the asterisks and wrap in a strong tag
+        const boldText = part.slice(2, -2);
+        return <strong key={index}>{boldText}</strong>;
+      }
+      return part;
+    });
+  };
+
   return (
     <div className="relative">
       <div className="absolute -inset-1 bg-gradient-to-r from-blue-300 via-purple-300 to-green-300 dark:from-blue-500 dark:via-purple-500 dark:to-green-500 rounded-xl animate-border bg-[length:400%_400%] opacity-70 blur-[2px] [animation-duration:_12s]"></div>
@@ -472,8 +657,8 @@ export default function AgentChat({ className }: AgentChatProps) {
           {/* Header */}
           <div className="p-4 flex justify-between items-center border-b border-border/30">
             <h2 className="text-xl font-semibold flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse"></div>
-              Assistant
+              <Bot className="h-5 w-5 text-blue-500" />
+              Agent
             </h2>
             <Button 
               variant="ghost" 
@@ -493,10 +678,10 @@ export default function AgentChat({ className }: AgentChatProps) {
                 <MessageSquare className="h-8 w-8 text-muted-foreground" />
               </div>
               <h3 className="text-xl font-semibold">How can I help you today?</h3>
-              <p className="text-muted-foreground text-sm max-w-sm mt-2">
+              <p className="text-muted-foreground text-sm max-w-md mt-2">
                 Ask me about scheduling, tasks, ideas, or habits. I can help you manage your time and productivity.
               </p>
-              <div className="grid grid-cols-1 gap-2 mt-6 max-w-md w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 w-full max-w-2xl">
                 {suggestedPrompts.map((prompt) => (
                   <Button
                     key={prompt}
@@ -533,27 +718,27 @@ export default function AgentChat({ className }: AgentChatProps) {
                     className={cn(
                       "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm",
                       msg.role === 'user' 
-                        ? "bg-primary text-primary-foreground rounded-tr-none" 
+                        ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tr-none" 
                         : msg.role === 'function'
-                          ? "bg-amber-100 dark:bg-amber-900/30 text-foreground rounded-tl-none border border-amber-200 dark:border-amber-800"
-                          : "bg-secondary text-secondary-foreground rounded-tl-none"
+                          ? "bg-blue-50 dark:bg-blue-900/30 text-foreground rounded-tl-none border border-blue-200 dark:border-blue-800"
+                          : "bg-secondary text-secondary-foreground rounded-tl-none shadow-[0_0_15px_rgba(59,130,246,0.2)] dark:shadow-[0_0_15px_rgba(96,165,250,0.2)]"
                     )}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <p className={cn(
                         "text-sm font-medium",
                         msg.role === 'user' 
-                          ? "text-primary-foreground" 
+                          ? "text-gray-700 dark:text-gray-300" 
                           : msg.role === 'function'
-                            ? "text-amber-800 dark:text-amber-300"
+                            ? "text-blue-800 dark:text-blue-300"
                             : "text-secondary-foreground"
                       )}>
                         {msg.role === 'user' 
                           ? 'You' 
                           : msg.role === 'function' 
                           ? <span className="flex items-center">
-                              <Code2 className="h-3.5 w-3.5 mr-1" />
-                              {msg.name && msg.name.replace(/_/g, ' ')}
+                              <Wrench className="h-3.5 w-3.5 mr-1" />
+                              {msg.name && formatFunctionName(msg.name)}
                             </span> 
                           : 'Assistant'
                         }
@@ -566,21 +751,21 @@ export default function AgentChat({ className }: AgentChatProps) {
                     {/* Message content */}
                     <div className="prose prose-sm dark:prose-invert max-w-none">
                       {msg.role === 'function' ? (
-                        <pre className="text-xs bg-accent/50 p-2 rounded overflow-x-auto">
-                          {parseFunctionResponseForDisplay(msg.content)}
-                        </pre>
+                        <div className="text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded overflow-x-auto">
+                          {formatFunctionResponse(msg.content, msg.name)}
+                        </div>
                       ) : msg.function_call ? (
                         <div>
                           <div className="text-sm mb-1">{msg.content}</div>
-                          <div className="bg-slate-100 dark:bg-slate-800 rounded p-2 text-xs font-mono my-1">
-                            <span className="text-purple-600 dark:text-purple-400">function:</span> {msg.function_call.name}
+                          <div className="bg-blue-50 dark:bg-blue-900/20 rounded p-2 text-xs font-mono my-1">
+                            <span className="text-blue-600 dark:text-blue-400">function:</span> {msg.function_call.name}
                             <br />
-                            <span className="text-purple-600 dark:text-purple-400">arguments:</span> {formatArguments(msg.function_call.arguments)}
+                            <span className="text-blue-600 dark:text-blue-400">arguments:</span> {formatArguments(msg.function_call.arguments)}
                           </div>
                         </div>
                       ) : (
                         <div className="text-sm whitespace-pre-wrap">
-                          {msg.content}
+                          {formatMessageContent(msg.content)}
                         </div>
                       )}
                     </div>
@@ -637,4 +822,4 @@ export default function AgentChat({ className }: AgentChatProps) {
       </Card>
     </div>
   );
-} 
+}

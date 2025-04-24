@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.38.4";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.38.4";
 import OpenAI from 'npm:openai@4.12.1';
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 // Database service functions that match the actual schema
 const DatabaseService = {
-  async getScheduleItems (supabase, userId) {
+  async getScheduleItems (supabase: SupabaseClient, userId: string) {
     const { data, error } = await supabase.from('schedule_items').select('*').eq('user_id', userId).order('start_time', {
       ascending: true
     });
@@ -74,7 +74,7 @@ const DatabaseService = {
       };
     });
   },
-  async getIdeas (supabase, userId) {
+  async getIdeas (supabase: SupabaseClient, userId: string) {
     const { data, error } = await supabase.from('ideas').select('*').eq('user_id', userId).order('created_at', {
       ascending: false
     });
@@ -84,7 +84,7 @@ const DatabaseService = {
     }
     return data || [];
   },
-  async getHabits (supabase, userId) {
+  async getHabits (supabase: SupabaseClient, userId: string) {
     const { data, error } = await supabase.from('habits').select('*').eq('user_id', userId).order('created_at', {
       ascending: false
     });
@@ -94,7 +94,7 @@ const DatabaseService = {
     }
     return data || [];
   },
-  async getUserBio (supabase, userId) {
+  async getUserBio (supabase: SupabaseClient, userId: string) {
     const { data, error } = await supabase.from('profiles').select('bio').eq('id', userId).single();
     if (error) {
       console.error('Error fetching user bio:', error);
@@ -102,7 +102,7 @@ const DatabaseService = {
     }
     return data?.bio || '';
   },
-  async updateUserBio (supabase, userId, bio) {
+  async updateUserBio (supabase: SupabaseClient, userId: string, bio: string) {
     const { data, error } = await supabase.from('profiles').update({ bio }).eq('id', userId).select().single();
     if (error) {
       console.error('Error updating user bio:', error);
@@ -110,7 +110,7 @@ const DatabaseService = {
     }
     return data;
   },
-  async saveScheduleItem (supabase, item) {
+  async saveScheduleItem (supabase: SupabaseClient, item: any) {
     // Process date and time if provided separately
     if (item.date) {
       const dateStr = item.date;
@@ -236,7 +236,7 @@ const DatabaseService = {
     }
     return data;
   },
-  async saveIdea (supabase, idea) {
+  async saveIdea (supabase: SupabaseClient, idea: any) {
     // Prepare idea for database
     const ideaItem = {
       user_id: idea.user_id,
@@ -251,7 +251,7 @@ const DatabaseService = {
     }
     return data;
   },
-  async saveHabit (supabase, habit) {
+  async saveHabit (supabase: SupabaseClient, habit: any) {
     // Prepare habit for database
     const habitItem = {
       user_id: habit.user_id,
@@ -270,6 +270,30 @@ const DatabaseService = {
       return null;
     }
     return data;
+  },
+  async deleteScheduleItem (supabase: SupabaseClient, itemId: string) {
+    const { error } = await supabase.from('schedule_items').delete().eq('id', itemId);
+    if (error) {
+      console.error('Error deleting schedule item:', error);
+      return false;
+    }
+    return true;
+  },
+  async deleteIdea (supabase: SupabaseClient, ideaId: string) {
+    const { error } = await supabase.from('ideas').delete().eq('id', ideaId);
+    if (error) {
+      console.error('Error deleting idea:', error);
+      return false;
+    }
+    return true;
+  },
+  async deleteHabit (supabase: SupabaseClient, habitId: string) {
+    const { error } = await supabase.from('habits').delete().eq('id', habitId);
+    if (error) {
+      console.error('Error deleting habit:', error);
+      return false;
+    }
+    return true;
   }
 };
 // Define function schemas for OpenAI function calling
@@ -582,6 +606,54 @@ const functionDefinitions = [
         'id'
       ]
     }
+  },
+  {
+    name: 'delete_schedule_item',
+    description: 'Delete a schedule item',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'ID of the schedule item to delete'
+        }
+      },
+      required: [
+        'id'
+      ]
+    }
+  },
+  {
+    name: 'delete_idea',
+    description: 'Delete an idea',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'ID of the idea to delete'
+        }
+      },
+      required: [
+        'id'
+      ]
+    }
+  },
+  {
+    name: 'delete_habit',
+    description: 'Delete a habit',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'ID of the habit to delete'
+        }
+      },
+      required: [
+        'id'
+      ]
+    }
   }
 ];
 // Deno edge function handler
@@ -615,7 +687,11 @@ Deno.serve(async (req)=>{
     let scheduleUpdates = [];
     let ideasUpdates = [];
     let habitsUpdates = [];
+    let scheduleDeletions = [];
+    let ideasDeletions = [];
+    let habitsDeletions = [];
     let bioUpdate = null;
+    let userBio = '';
     let finalResponseMessage = '';
     // Data fetched from the database
     let scheduleItems = [];
@@ -655,6 +731,7 @@ IMPORTANT: You must maintain and use the user's biographical information to prov
 
 First, if you need to know about the user's schedule, ideas, or habits, retrieve that data with get_schedule_items, get_ideas, or get_habits.
 If the user wants to create or update items, use the appropriate create or update function calls.
+If the user wants to delete items, use the appropriate delete function calls (delete_schedule_item, delete_idea, delete_habit).
 Be friendly, helpful, and personable in your responses.
 
 When creating schedule items, make sure to include:
@@ -672,7 +749,9 @@ For recurring events, use the recurrence_rule field with iCal RRULE format:
 - Yearly: "FREQ=YEARLY;INTERVAL=1"
 
 The interval value indicates how often the event repeats (1=every, 2=every other, etc.)
-The BYDAY parameter can include: MO, TU, WE, TH, FR, SA, SU`
+The BYDAY parameter can include: MO, TU, WE, TH, FR, SA, SU
+
+CRITICAL: When deleting items, always use the specific delete functions (delete_schedule_item, delete_idea, delete_habit) rather than trying to update them to a deleted state. This ensures proper tracking and UI updates.`
     };
     // Convert chat history to ChatGPT format
     const messages = [
@@ -872,6 +951,42 @@ The BYDAY parameter can include: MO, TU, WE, TH, FR, SA, SU`
               habit: savedHabit
             })
           });
+        } else if (functionName === 'delete_schedule_item') {
+          const deleted = await DatabaseService.deleteScheduleItem(supabase, functionArgs.id);
+          if (deleted) {
+            scheduleDeletions.push(functionArgs.id);
+          }
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: deleted
+            })
+          });
+        } else if (functionName === 'delete_idea') {
+          const deleted = await DatabaseService.deleteIdea(supabase, functionArgs.id);
+          if (deleted) {
+            ideasDeletions.push(functionArgs.id);
+          }
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: deleted
+            })
+          });
+        } else if (functionName === 'delete_habit') {
+          const deleted = await DatabaseService.deleteHabit(supabase, functionArgs.id);
+          if (deleted) {
+            habitsDeletions.push(functionArgs.id);
+          }
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: deleted
+            })
+          });
         }
         // Continue the loop
         iterations++;
@@ -902,6 +1017,9 @@ The BYDAY parameter can include: MO, TU, WE, TH, FR, SA, SU`
       scheduleUpdates,
       ideasUpdates,
       habitsUpdates,
+      scheduleDeletions,
+      ideasDeletions,
+      habitsDeletions,
       bioUpdate,
       thoughts,
       sessionId

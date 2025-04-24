@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Bell, LogOut, Loader2, Menu, X } from 'lucide-react';
+import { Bell, LogOut, Loader2, Menu, X, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useSupabase } from '@/app/supabase-provider';
 import { useToast } from '@/hooks/use-toast';
 import {
   Sheet,
@@ -20,8 +20,8 @@ export function Header() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { supabase, session } = useSupabase();
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
   
   useEffect(() => {
     const handleScroll = () => {
@@ -56,6 +56,12 @@ export function Header() {
     { name: 'Settings', href: '/settings' },
   ];
 
+  // Compute user initials from full_name or fallback to email
+  const userName = session?.user.user_metadata?.full_name;
+  const initials = userName
+    ? userName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
+    : session?.user.email?.[0]?.toUpperCase() ?? '';
+
   return (
     <header className={`sticky top-0 z-50 w-full transition-all duration-300 ${
       scrolled ? 'bg-background/90 backdrop-blur-md border-b' : 'bg-transparent'
@@ -64,6 +70,7 @@ export function Header() {
         {/* Logo */}
         <div className="flex items-center">
           <Link href="/" className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary rounded-md">
+            <Bot className="h-6 w-6 mr-2 text-blue-500" />
             <span className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">
               hustlebro.ai
             </span>
@@ -95,8 +102,8 @@ export function Header() {
           </Button>
 
           <div className="hidden md:flex pl-2">
-            <Avatar className="h-8 w-8 border border-border">
-              <AvatarFallback>MG</AvatarFallback>
+            <Avatar className="h-10 w-10 border border-border">
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </div>
 

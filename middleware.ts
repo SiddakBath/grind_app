@@ -14,13 +14,14 @@ export async function middleware(req: NextRequest) {
   // After refreshing the session, get it to check for redirects
   const { data: { session } } = await supabase.auth.getSession();
 
-  // Auth protection routes
-  if (!session && req.nextUrl.pathname === '/') {
+  // Protect dashboard route
+  if (!session && req.nextUrl.pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
+  // Redirect authenticated users away from login page
   if (session && req.nextUrl.pathname === '/login') {
-    return NextResponse.redirect(new URL('/', req.url));
+    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
   return res;
@@ -28,5 +29,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Include auth/callback in the matcher to ensure session is properly handled
-  matcher: ['/', '/login', '/auth/callback'],
+  matcher: ['/dashboard/:path*', '/login', '/auth/callback'],
 };

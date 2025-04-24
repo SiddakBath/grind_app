@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Label } from '@/components/ui/label';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const { toast } = useToast();
@@ -25,15 +27,27 @@ export function LoginForm() {
     try {
       if (isSignUp) {
         // Handle sign up
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              full_name: fullName,
+            },
           },
         });
 
         if (error) throw error;
+
+        // Save full name to profiles table
+        if (data.user) {
+          await supabase.from('profiles').upsert({
+            id: data.user.id,
+            email,
+            full_name: fullName,
+          });
+        }
 
         toast({
           title: "Check your email",
@@ -50,7 +64,7 @@ export function LoginForm() {
 
         // Refresh the session on the server
         router.refresh();
-        router.push('/');
+        router.push('/dashboard');
       }
     } catch (error: any) {
       toast({
@@ -69,11 +83,31 @@ export function LoginForm() {
         <CardTitle className="text-2xl font-bold text-center">
           {isSignUp ? "Create an account" : "Welcome back"}
         </CardTitle>
+        <CardDescription className="text-center">
+          {isSignUp
+            ? "Please enter your name, email and password to create an account."
+            : "Enter your email and password to sign in."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isSignUp && (
+            <div className="space-y-2">
+              <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
+              <Input
+                id="fullName"
+                type="text"
+                placeholder="Full Name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+              />
+            </div>
+          )}
           <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-medium">Email</Label>
             <Input
+              id="email"
               type="email"
               placeholder="Email"
               value={email}
@@ -82,7 +116,9 @@ export function LoginForm() {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-medium">Password</Label>
             <Input
+              id="password"
               type="password"
               placeholder="Password"
               value={password}
@@ -101,18 +137,13 @@ export function LoginForm() {
               isSignUp ? "Sign Up" : "Sign In"
             )}
           </Button>
-          <div className="text-center">
-            <Button 
-              variant="link" 
-              type="button" 
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm"
-            >
-              {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
-            </Button>
-          </div>
         </form>
       </CardContent>
+      <CardFooter className="flex justify-center border-t border-border p-4">
+        <Button variant="link" onClick={() => setIsSignUp(!isSignUp)} className="text-sm">
+          {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
+        </Button>
+      </CardFooter>
     </Card>
   );
 }
