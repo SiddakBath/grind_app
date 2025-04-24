@@ -621,7 +621,6 @@ Deno.serve(async (req)=>{
     let scheduleItems = [];
     let ideas = [];
     let habits = [];
-    let userBio = '';
     // Create a system message with context
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].slice(0, 5);

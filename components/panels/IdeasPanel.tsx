@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Lightbulb, Plus, Sparkles, PlusCircle } from 'lucide-react';
+import { Lightbulb, Plus, Sparkles, PlusCircle, Maximize2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,9 +19,11 @@ interface Idea {
 interface IdeasPanelProps {
   activeQuery: string;
   updates?: any[];
+  isExpanded?: boolean;
+  onExpandToggle?: (isExpanded: boolean) => void;
 }
 
-export function IdeasPanel({ activeQuery, updates = [] }: IdeasPanelProps) {
+export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onExpandToggle }: IdeasPanelProps) {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   
   const [isUpdating, setIsUpdating] = useState(false);
@@ -172,23 +174,41 @@ export function IdeasPanel({ activeQuery, updates = [] }: IdeasPanelProps) {
     }
   }, [activeQuery, updates]);
 
+  const toggleExpandedView = () => {
+    if (onExpandToggle) {
+      onExpandToggle(!isExpanded);
+    }
+  };
+
   return (
     <Card className={cn(
-      "h-full border border-border/40 bg-background/60 backdrop-blur-sm transition-all duration-300",
+      "border border-border/40 bg-background/60 backdrop-blur-sm transition-all duration-300",
       "hover:shadow-md flex flex-col",
-      isUpdating && "animate-pulse"
-    )}>
+      isUpdating && "animate-pulse",
+      isExpanded && "fixed inset-10 z-50"
+    )}
+    style={{ 
+      height: isExpanded ? 'calc(100vh - 5rem)' : '100%' 
+    }}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-lg font-medium flex items-center gap-2">
           <Lightbulb className="h-5 w-5" />
           <span>Ideas</span>
         </CardTitle>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <Plus className="h-4 w-4" />
-          <span className="sr-only">Add idea</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Plus className="h-4 w-4" />
+            <span className="sr-only">Add idea</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={toggleExpandedView} className="ml-auto">
+            <Maximize2 className="h-3 w-3" />
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto pb-6">
+      <CardContent className={cn(
+        "flex-1 overflow-y-auto pb-6",
+        isExpanded && "px-6"
+      )}>
         {ideas.length > 0 ? (
           <div className="space-y-4">
             {ideas.map((idea) => (

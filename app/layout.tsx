@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'MyGrind.ai - Your Intelligent Assistant',
+  title: 'hustlebro.ai - Your Intelligent Assistant',
   description: 'A futuristic AI assistant that helps manage your schedule, ideas, and habits',
 };
 

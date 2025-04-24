@@ -4,10 +4,16 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Bell, AlarmClock, LogOut, Loader2 } from 'lucide-react';
+import { Bell, LogOut, Loader2, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
@@ -43,37 +49,43 @@ export function Header() {
     }
   };
 
+  const navItems = [
+    { name: 'Dashboard', href: '/' },
+    { name: 'Analytics', href: '/analytics' },
+    { name: 'Tasks', href: '/tasks' },
+    { name: 'Settings', href: '/settings' },
+  ];
+
   return (
     <header className={`sticky top-0 z-50 w-full transition-all duration-300 ${
-      scrolled ? 'bg-background/80 backdrop-blur-md shadow-sm' : 'bg-transparent'
+      scrolled ? 'bg-background/90 backdrop-blur-md border-b' : 'bg-transparent'
     }`}>
-      <div className="container max-w-6xl h-16 mx-auto flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <Link href="/">
+      <div className="container w-full h-16 mx-auto flex items-center justify-between px-4">
+        {/* Logo */}
+        <div className="flex items-center">
+          <Link href="/" className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary rounded-md">
             <span className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">
-              MyGrind.ai
+              hustlebro.ai
             </span>
           </Link>
         </div>
-        <nav className="hidden md:flex items-center gap-4">
-          <Link href="/" className={`px-3 py-2 rounded-md ${pathname === '/' ? 'font-medium text-primary' : 'text-muted-foreground hover:text-primary'}`}>
-            Dashboard
-          </Link>
-        </nav>
+
+        {/* Right side controls */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
             <Bell className="h-5 w-5" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full" />
           </Button>
-          <Button variant="ghost" size="icon">
-            <AlarmClock className="h-5 w-5" />
-          </Button>
+          
           <ThemeToggle />
+          
           <Button 
             variant="ghost" 
             size="icon"
             onClick={handleSignOut}
             disabled={isLoading}
+            aria-label="Sign out"
+            className="hidden md:flex"
           >
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -81,6 +93,57 @@ export function Header() {
               <LogOut className="h-5 w-5" />
             )}
           </Button>
+
+          <div className="hidden md:flex pl-2">
+            <Avatar className="h-8 w-8 border border-border">
+              <AvatarFallback>MG</AvatarFallback>
+            </Avatar>
+          </div>
+
+          {/* Mobile Menu */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[260px]">
+              <div className="flex flex-col h-full">
+                <div className="flex flex-col gap-4 pt-6">
+                  <h3 className="font-semibold text-foreground px-3">Navigation</h3>
+                  {navItems.map((item) => (
+                    <Link 
+                      key={item.name}
+                      href={item.href} 
+                      className={`px-3 py-2 rounded-md text-sm font-medium
+                        ${pathname === item.href 
+                          ? 'text-primary bg-primary/10' 
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        }`}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
+                </div>
+                <div className="mt-auto pt-6 flex items-center">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleSignOut}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <LogOut className="h-4 w-4 mr-2" />
+                    )}
+                    Sign Out
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>

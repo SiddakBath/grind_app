@@ -78,10 +78,26 @@ const config: Config = {
             height: '0',
           },
         },
+        float: {
+          '0%, 100%': {
+            transform: 'translateY(0px)',
+            boxShadow: '0 5px 15px 0px rgba(0, 0, 0, 0.1)',
+          },
+          '50%': {
+            transform: 'translateY(-10px)',
+            boxShadow: '0 15px 20px 0px rgba(0, 0, 0, 0.1)',
+          },
+        },
+        border: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'float': 'float 5s ease-in-out infinite',
+        'border': 'border 6s ease infinite',
       },
     },
   },

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Activity, ExternalLink, Calendar, CheckCircle, Zap, BarChart } from 'lucide-react';
+import { Activity, ExternalLink, Calendar, CheckCircle, Zap, BarChart, Maximize2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DatabaseService } from '@/lib/database-service';
 import { useToast } from '@/hooks/use-toast';
@@ -19,9 +20,11 @@ interface Habit {
 interface HabitsPanelProps {
   activeQuery: string;
   updates?: any[];
+  isExpanded?: boolean;
+  onExpandToggle?: (isExpanded: boolean) => void;
 }
 
-export function HabitsPanel({ activeQuery, updates = [] }: HabitsPanelProps) {
+export function HabitsPanel({ activeQuery, updates = [], isExpanded = false, onExpandToggle }: HabitsPanelProps) {
   const [habits, setHabits] = useState<Habit[]>([]);
   
   const [isUpdating, setIsUpdating] = useState(false);
@@ -32,23 +35,23 @@ export function HabitsPanel({ activeQuery, updates = [] }: HabitsPanelProps) {
   const loadHabits = useCallback(async () => {
     try {
       setIsLoadingDB(true);
-      const items = await DatabaseService.getHabits();
+      // Fetch habits from database
+      const items: any[] = await DatabaseService.getHabits();
       
-      // Convert database format to component format (parsing [HABIT] format)
-      const formattedHabits = items.map(item => {
-        // Parse the habit content from the format: [HABIT] Title - Frequency: Daily, Type: daily
-        const content = item.content.replace('[HABIT] ', '');
-        const titleMatch = content.match(/^(.+?)(?: - Frequency:|$)/);
-        const freqMatch = content.match(/Frequency: ([^,]+)/);
-        const typeMatch = content.match(/Type: (\w+)/);
-        
+      // Map database fields directly to habit format
+      const formattedHabits: Habit[] = items.map((item: any) => {
+        // Determine title and frequency
+        const title = item.title || item.description || "Untitled Habit";
+        const frequency = item.frequency || "Daily";
+        // Validate type
+        const typeVal = ['daily', 'weekly', 'monthly'].includes(item.type)
+          ? (item.type as 'daily' | 'weekly' | 'monthly')
+          : 'daily';
         return {
-          id: item.id,
-          title: titleMatch ? titleMatch[1].trim() : "Untitled Habit",
-          frequency: freqMatch ? freqMatch[1].trim() : "Daily",
-          type: (typeMatch && ['daily', 'weekly', 'monthly'].includes(typeMatch[1].trim().toLowerCase())) 
-            ? typeMatch[1].trim().toLowerCase() as 'daily' | 'weekly' | 'monthly'
-            : 'daily'
+          id: String(item.id),
+          title,
+          frequency,
+          type: typeVal,
         };
       });
       
@@ -207,20 +210,35 @@ export function HabitsPanel({ activeQuery, updates = [] }: HabitsPanelProps) {
     }
   };
 
+  const toggleExpandedView = () => {
+    if (onExpandToggle) {
+      onExpandToggle(!isExpanded);
+    }
+  };
+
   return (
     <Card className={cn(
-      "h-full border border-border/40 bg-background/60 backdrop-blur-sm transition-all duration-300",
+      "border border-border/40 bg-background/60 backdrop-blur-sm transition-all duration-300",
       "hover:shadow-md flex flex-col",
-      isUpdating && "animate-pulse"
-    )}>
+      isUpdating && "animate-pulse",
+      isExpanded && "fixed inset-10 z-50"
+    )}
+    style={{ 
+      height: isExpanded ? 'calc(100vh - 5rem)' : '100%' 
+    }}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-lg font-medium flex items-center gap-2">
           <Activity className="h-5 w-5" />
           <span>Habits</span>
         </CardTitle>
-        <Badge variant="outline" className="font-normal">Tracking</Badge>
+        <Button variant="outline" size="sm" onClick={toggleExpandedView} className="ml-auto">
+          <Maximize2 className="h-3 w-3" />
+        </Button>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto pb-6">
+      <CardContent className={cn(
+        "flex-1 overflow-y-auto pb-6",
+        isExpanded && "px-6"
+      )}>
         {habits.length > 0 ? (
           <div className="space-y-4">
             {habits.map((habit) => (

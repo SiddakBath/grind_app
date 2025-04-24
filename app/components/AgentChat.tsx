@@ -4,11 +4,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSupabase } from '@/app/supabase-provider';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Loader2, SendIcon, RefreshCwIcon, Code2, ArrowRight } from 'lucide-react';
+import { Loader2, SendIcon, RefreshCwIcon, Code2, ArrowRight, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { EVENTS } from '@/app/supabase-provider';
+import { SearchIcon } from 'lucide-react';
 
 interface FunctionCall {
   name: string;
@@ -36,6 +37,14 @@ export default function AgentChat({ className }: AgentChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionIdRef = useRef<string>(generateSessionId());
+
+  // Suggested prompts for empty state
+  const suggestedPrompts = [
+    "What's on my schedule today?",
+    "Add a new task for tomorrow",
+    "I have an idea for a project",
+    "Track my habit progress",
+  ];
 
   // Generate a unique session ID
   function generateSessionId() {
@@ -442,127 +451,190 @@ export default function AgentChat({ className }: AgentChatProps) {
     }
   };
 
+  // Parse function response for display
+  const parseFunctionResponseForDisplay = (content: string) => {
+    try {
+      const data = JSON.parse(content);
+      return JSON.stringify(data, null, 2);
+    } catch (e) {
+      return content;
+    }
+  };
+
   return (
-    <Card className={cn(
-      "w-full border border-border/40 bg-background/60 backdrop-blur-sm shadow-lg transition-all duration-300 hover:shadow-xl",
-      className
-    )}>
-      <CardContent className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">
-            {messages.length === 0 ? "New Conversation" : `Chat Session: ${sessionIdRef.current.split('_')[1]}`}
-          </h2>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={resetConversation}
-            title="Reset conversation"
-            disabled={isLoading || messages.length === 0}
-          >
-            <RefreshCwIcon className="h-4 w-4" />
-          </Button>
-        </div>
-        
-        {messages.length === 0 ? (
-          <div className="mb-6 text-center">
-            <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400 pb-1">
-              Hello, how can I assist you today?
+    <div className="relative">
+      <div className="absolute -inset-1 bg-gradient-to-r from-blue-300 via-purple-300 to-green-300 dark:from-blue-500 dark:via-purple-500 dark:to-green-500 rounded-xl animate-border bg-[length:400%_400%] opacity-70 blur-[2px] [animation-duration:_12s]"></div>
+      <Card className={cn(
+        "w-full bg-background/60 backdrop-blur-sm shadow-lg transition-all duration-300 hover:shadow-xl rounded-xl overflow-hidden relative z-10",
+        className
+      )}>
+        <CardContent className="p-0">
+          {/* Header */}
+          <div className="p-4 flex justify-between items-center border-b border-border/30">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse"></div>
+              Assistant
             </h2>
-            <p className="text-muted-foreground mt-2">
-              Ask me about your schedule, ideas, or habits...
-            </p>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={resetConversation}
+              title="Clear chat"
+              disabled={isLoading || messages.length === 0}
+            >
+              <RefreshCwIcon className="h-4 w-4" />
+            </Button>
           </div>
-        ) : (
-          <div className="mb-6 max-h-[400px] overflow-y-auto pr-2">
-            {messages.map((msg) => (
-              <div 
-                key={msg.id} 
-                className={cn(
-                  "mb-4 p-3 rounded-lg",
-                  msg.role === 'user' 
-                    ? "bg-primary/10 ml-8" 
-                    : "bg-secondary/10 mr-8"
-                )}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold">
-                      {msg.role === 'user' 
-                        ? 'You' 
-                        : msg.role === 'function' 
-                        ? <span className="flex items-center">
-                            <Code2 className="h-3 w-3 mr-1" />
-                            {msg.name && msg.name.replace(/_/g, ' ')}
-                          </span> 
-                        : 'Assistant'
+        
+          {/* Empty state */}
+          {messages.length === 0 && (
+            <div className="py-12 flex flex-col items-center justify-center text-center px-4">
+              <div className="mb-4 rounded-full bg-muted/30 p-3 ring-1 ring-border/50">
+                <MessageSquare className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold">How can I help you today?</h3>
+              <p className="text-muted-foreground text-sm max-w-sm mt-2">
+                Ask me about scheduling, tasks, ideas, or habits. I can help you manage your time and productivity.
+              </p>
+              <div className="grid grid-cols-1 gap-2 mt-6 max-w-md w-full">
+                {suggestedPrompts.map((prompt) => (
+                  <Button
+                    key={prompt}
+                    variant="outline"
+                    className="h-auto py-3 px-4 text-sm justify-start truncate overflow-hidden"
+                    onClick={() => {
+                      setInput(prompt);
+                      if (inputRef.current) {
+                        inputRef.current.focus();
                       }
-                    </p>
-                    <p className="text-xs opacity-70">
-                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    }}
+                  >
+                    <SearchIcon className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                    <span className="truncate">{prompt}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Messages */}
+          {messages.length > 0 && (
+            <div className="max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 py-6 bg-gradient-to-b from-background/60 to-background space-y-6">
+              {messages.map((msg) => (
+                <div 
+                  key={msg.id} 
+                  className={cn(
+                    "flex",
+                    msg.role === 'user' ? "justify-end" : "justify-start",
+                    "animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm",
+                      msg.role === 'user' 
+                        ? "bg-primary text-primary-foreground rounded-tr-none" 
+                        : msg.role === 'function'
+                          ? "bg-amber-100 dark:bg-amber-900/30 text-foreground rounded-tl-none border border-amber-200 dark:border-amber-800"
+                          : "bg-secondary text-secondary-foreground rounded-tl-none"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className={cn(
+                        "text-sm font-medium",
+                        msg.role === 'user' 
+                          ? "text-primary-foreground" 
+                          : msg.role === 'function'
+                            ? "text-amber-800 dark:text-amber-300"
+                            : "text-secondary-foreground"
+                      )}>
+                        {msg.role === 'user' 
+                          ? 'You' 
+                          : msg.role === 'function' 
+                          ? <span className="flex items-center">
+                              <Code2 className="h-3.5 w-3.5 mr-1" />
+                              {msg.name && msg.name.replace(/_/g, ' ')}
+                            </span> 
+                          : 'Assistant'
+                        }
+                      </p>
+                      <p className="text-xs opacity-70">
+                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    
+                    {/* Message content */}
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      {msg.role === 'function' ? (
+                        <pre className="text-xs bg-accent/50 p-2 rounded overflow-x-auto">
+                          {parseFunctionResponseForDisplay(msg.content)}
+                        </pre>
+                      ) : msg.function_call ? (
+                        <div>
+                          <div className="text-sm mb-1">{msg.content}</div>
+                          <div className="bg-slate-100 dark:bg-slate-800 rounded p-2 text-xs font-mono my-1">
+                            <span className="text-purple-600 dark:text-purple-400">function:</span> {msg.function_call.name}
+                            <br />
+                            <span className="text-purple-600 dark:text-purple-400">arguments:</span> {formatArguments(msg.function_call.arguments)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm whitespace-pre-wrap">
+                          {msg.content}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                
-                {msg.role === 'function' ? (
-                  <div className="text-sm">
-                    {formatFunctionResponse(msg.content, msg.name)}
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-base whitespace-pre-wrap">{msg.content}</p>
-                    
-                    {msg.function_call && (
-                      <div className="mt-2 pt-2 border-t border-border/30">
-                        <div className="flex items-center mb-1">
-                          <Badge variant="outline" className="flex items-center gap-1 font-normal">
-                            <Code2 className="h-3 w-3" />
-                            Function Call
-                          </Badge>
-                        </div>
-                        <div className="font-mono text-xs bg-black/5 p-2 rounded-md overflow-x-auto">
-                          <span className="text-blue-600 dark:text-blue-400">{msg.function_call.name}</span>
-                          ({formatArguments(msg.function_call.arguments)})
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         
-        <form onSubmit={handleSubmit} className="relative">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message here..."
-            className={cn(
-              "w-full min-h-[80px] p-4 pr-12 rounded-xl border border-input",
-              "bg-background/50 backdrop-blur-sm resize-none",
-              "focus:outline-none focus:ring-2 focus:ring-ring focus:border-input",
-              "placeholder:text-muted-foreground transition-all duration-200",
-              "text-base leading-relaxed"
+          {/* Input area */}
+          <div className="p-4 border-t border-border/30 bg-background/80">
+            <form onSubmit={handleSubmit} className="relative">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message here..."
+                className={cn(
+                  "w-full min-h-[80px] p-4 pr-14 rounded-xl border border-input",
+                  "bg-background/50 backdrop-blur-sm resize-none",
+                  "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50",
+                  "placeholder:text-muted-foreground transition-all duration-200",
+                  "text-base leading-relaxed shadow-sm"
+                )}
+                disabled={isLoading}
+              />
+              <Button 
+                type="submit"
+                size="icon"
+                className={cn(
+                  "absolute bottom-4 right-4 rounded-full transition-all duration-300",
+                  "bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700",
+                  "text-white shadow-md hover:shadow-lg"
+                )}
+                disabled={isLoading || !input.trim()}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <SendIcon className="h-5 w-5" />
+                )}
+              </Button>
+            </form>
+            {isLoading && (
+              <div className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Processing your message...
+              </div>
             )}
-            disabled={isLoading}
-          />
-          <Button 
-            type="submit"
-            size="icon"
-            className="absolute bottom-4 right-4 rounded-full"
-            disabled={isLoading || !input.trim()}
-          >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <SendIcon className="h-5 w-5" />
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 } 

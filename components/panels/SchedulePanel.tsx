@@ -190,15 +190,16 @@ const dayMapping: Record<number, string> = {
 interface SchedulePanelProps {
   activeQuery: string;
   updates?: ScheduleUpdate[];
+  isExpanded?: boolean;
+  onExpandToggle?: (isExpanded: boolean) => void;
 }
 
-export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps) {
+export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, onExpandToggle }: SchedulePanelProps) {
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
-  const [expandedView, setExpandedView] = useState(false);
   const [showAddTaskDialog, setShowAddTaskDialog] = useState(false);
   const [newTask, setNewTask] = useState<Partial<UIScheduleUpdate>>({
     title: '',
@@ -368,7 +369,11 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
   const goToNextWeek = () => setCurrentDate(prev => addDays(prev, 7));
   const goToPrevWeek = () => setCurrentDate(prev => subDays(prev, 7));
   const toggleViewMode = () => setViewMode(prev => prev === 'day' ? 'week' : 'day');
-  const toggleExpandedView = () => setExpandedView(prev => !prev);
+  const toggleExpandedView = () => {
+    if (onExpandToggle) {
+      onExpandToggle(!isExpanded);
+    }
+  };
   
   // Group items by time when displaying for the day
   const groupItemsByTime = (items: ScheduleItem[]) => {
@@ -490,10 +495,10 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
         "border border-border/40 bg-background/60 backdrop-blur-sm transition-all duration-300",
         "hover:shadow-md overflow-hidden flex flex-col",
         isUpdating && "animate-pulse",
-        expandedView && "fixed inset-10 z-50"
+        isExpanded && "fixed inset-10 z-50"
       )}
       style={{ 
-        height: expandedView ? 'calc(100vh - 5rem)' : '100%' 
+        height: isExpanded ? 'calc(100vh - 5rem)' : '100%' 
       }}
     >
       <CardHeader className="flex flex-col space-y-2 pb-2">
@@ -510,7 +515,7 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
         
         <div className={cn(
           "flex items-center gap-1",
-          expandedView ? "justify-center" : "justify-between"
+          isExpanded ? "justify-center" : "justify-between"
         )}>
           <Button variant="outline" size="sm" onClick={viewMode === 'day' ? goToPrevDay : goToPrevWeek}>
             <ChevronLeft className="h-3 w-3" />
@@ -527,7 +532,7 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
             <ChevronRight className="h-3 w-3" />
           </Button>
           
-          {expandedView && (
+          {isExpanded && (
             <Button variant="outline" size="sm" onClick={toggleViewMode} className="min-w-16 ml-4">
               <span className="text-xs font-normal">
                 {viewMode === 'day' ? 'Day' : 'Week'}
@@ -535,7 +540,7 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
             </Button>
           )}
           
-          <div className={expandedView ? "ml-4" : "ml-auto"}>
+          <div className={isExpanded ? "ml-4" : "ml-auto"}>
             <Dialog open={showAddTaskDialog} onOpenChange={setShowAddTaskDialog}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -748,15 +753,15 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
       </CardHeader>
       <CardContent className={cn(
         "flex-1 overflow-y-auto pb-6",
-        expandedView && "px-6"
+        isExpanded && "px-6"
       )}>
         {viewMode === 'day' ? (
           // Day view with items grouped by time
-          <div className={expandedView ? "max-w-4xl mx-auto" : ""}>
+          <div className={isExpanded ? "max-w-4xl mx-auto" : ""}>
             {scheduleItems.length > 0 ? (
               <div className="space-y-4">
                 {Object.entries(groupItemsByTime(getItemsForDate(currentDate))).map(([time, items]) => (
-                  <div key={time} className={cn("mb-4", expandedView && "mb-6")}>
+                  <div key={time} className={cn("mb-4", isExpanded && "mb-6")}>
                     <div className="flex items-center mb-2">
                       {time === 'All Day' ? (
                         <Calendar className="mr-1 h-3 w-3" />
@@ -767,7 +772,7 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
                     </div>
                     <div className={cn(
                       "flex flex-wrap gap-2",
-                      expandedView && "gap-4"
+                      isExpanded && "gap-4"
                     )}>
                       {items.map((item) => (
                         <div 
@@ -775,12 +780,12 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
                           className={cn(
                             "flex-1 flex items-start gap-3 p-3 rounded-lg transition-all group",
                             "hover:bg-muted/50",
-                            expandedView && "p-4",
+                            isExpanded && "p-4",
                             item.id === scheduleItems[scheduleItems.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
                           )}
                           style={{
                             minHeight: item.all_day ? '80px' : `${Math.max(80, (item.duration || 60) / 15 * 20)}px`, // Scale height based on duration
-                            minWidth: items.length > 1 ? (expandedView ? 'calc(50% - 1rem)' : 'calc(50% - 0.5rem)') : '100%' // Side by side if multiple items
+                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.5rem)') : '100%' // Side by side if multiple items
                           }}
                         >
                           <div className={cn(
@@ -847,7 +852,7 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
           // Week view
           <div className={cn(
             "grid grid-cols-7 gap-2",
-            expandedView && "gap-4"
+            isExpanded && "gap-4"
           )}>
             {weekDays.map((day) => (
               <div key={format(day, 'yyyy-MM-dd')} className="flex flex-col">
@@ -862,9 +867,9 @@ export function SchedulePanel({ activeQuery, updates = [] }: SchedulePanelProps)
                 </div>
                 <div className={cn(
                   "flex-1 overflow-hidden border rounded-md p-1",
-                  expandedView && "p-2",
+                  isExpanded && "p-2",
                   isToday(day) && "border-primary/50 bg-primary/5"
-                )} style={{ minHeight: expandedView ? '300px' : '200px' }}>
+                )} style={{ minHeight: isExpanded ? '300px' : '200px' }}>
                   {getItemsForDate(day).length > 0 ? (
                     <div className="space-y-1">
                       {getItemsForDate(day).map((item) => (

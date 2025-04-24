@@ -11,8 +11,11 @@ type CategoryData = {
   habitsUpdates: any[];
 };
 
+type PanelType = 'schedule' | 'ideas' | 'habits' | null;
+
 export function DashboardPanels() {
   const [activeQuery, setActiveQuery] = useState('');
+  const [expandedPanel, setExpandedPanel] = useState<PanelType>(null);
   const [categoryData, setCategoryData] = useState<CategoryData>({
     scheduleUpdates: [],
     ideasUpdates: [],
@@ -38,24 +41,68 @@ export function DashboardPanels() {
     };
   }, []);
 
+  const panelClasses = "h-full transform transition-all duration-300 ease-in-out hover:scale-105 rounded-lg shadow-md hover:shadow-lg bg-opacity-95 hover:bg-opacity-100";
+
+  const handlePanelExpand = (panel: PanelType, isExpanded: boolean) => {
+    setExpandedPanel(isExpanded ? panel : null);
+  };
+
+  // If a panel is expanded, render it outside the grid
+  if (expandedPanel) {
+    return (
+      <div className="fixed inset-4 z-50">
+        {expandedPanel === 'schedule' && (
+          <SchedulePanel 
+            activeQuery={activeQuery} 
+            updates={categoryData.scheduleUpdates}
+            onExpandToggle={(isExpanded) => handlePanelExpand('schedule', isExpanded)}
+            isExpanded={true}
+          />
+        )}
+        {expandedPanel === 'ideas' && (
+          <IdeasPanel 
+            activeQuery={activeQuery} 
+            updates={categoryData.ideasUpdates}
+            onExpandToggle={(isExpanded) => handlePanelExpand('ideas', isExpanded)}
+            isExpanded={true}
+          />
+        )}
+        {expandedPanel === 'habits' && (
+          <HabitsPanel 
+            activeQuery={activeQuery} 
+            updates={categoryData.habitsUpdates}
+            onExpandToggle={(isExpanded) => handlePanelExpand('habits', isExpanded)}
+            isExpanded={true}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 min-h-[600px]">
-      <div className="h-full">
+      <div className={`${panelClasses} border border-blue-300/50 dark:border-blue-500/50 shadow-blue-300/70 hover:shadow-blue-400/80`}>
         <SchedulePanel 
           activeQuery={activeQuery} 
-          updates={categoryData.scheduleUpdates} 
+          updates={categoryData.scheduleUpdates}
+          onExpandToggle={(isExpanded) => handlePanelExpand('schedule', isExpanded)}
+          isExpanded={false}
         />
       </div>
-      <div className="h-full">
+      <div className={`${panelClasses} border border-purple-300/50 dark:border-purple-500/50 shadow-purple-300/70 hover:shadow-purple-400/80`}>
         <IdeasPanel 
           activeQuery={activeQuery} 
-          updates={categoryData.ideasUpdates} 
+          updates={categoryData.ideasUpdates}
+          onExpandToggle={(isExpanded) => handlePanelExpand('ideas', isExpanded)}
+          isExpanded={false}
         />
       </div>
-      <div className="h-full">
+      <div className={`${panelClasses} border border-green-300/50 dark:border-green-500/50 shadow-green-300/70 hover:shadow-green-400/80`}>
         <HabitsPanel 
           activeQuery={activeQuery} 
-          updates={categoryData.habitsUpdates} 
+          updates={categoryData.habitsUpdates}
+          onExpandToggle={(isExpanded) => handlePanelExpand('habits', isExpanded)}
+          isExpanded={false}
         />
       </div>
     </div>

@@ -22,13 +22,7 @@ export default async function Home() {
       <Header />
       <div className="flex-1 container max-w-7xl mx-auto px-4 py-6 flex flex-col gap-10">
         <div className="space-y-6">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
-            <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">🎉 New Feature: Advanced AI Assistant</h3>
-            <p className="text-blue-700 dark:text-blue-400 text-sm">
-              We've upgraded our AI with a ReAct agent that can better understand your schedule, ideas, and habits. 
-              This new AI assistant provides more natural conversations and smarter recommendations!
-            </p>
-          </div>
+          
           <AgentChat />
         </div>
         <div className="flex-1">
