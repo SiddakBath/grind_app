@@ -26,15 +26,14 @@ export type ScheduleItem = {
   title: string;
   description: string | null;
   priority: 'low' | 'medium' | 'high' | null;
-  start_time: string;  // Timestamp with timezone
-  end_time: string;    // Timestamp with timezone
+  start_time: string;  // Timestamp
+  end_time: string;    // Timestamp
   all_day: boolean;
   recurrence_rule: string | null;  // iCal RRULE format
   created_at: string;
   updated_at: string;
   
   // Computed fields for display purposes
-  date?: string;         // YYYY-MM-DD format
   start_time_display?: string;  // HH:MM AM/PM format
   end_time_display?: string;    // HH:MM AM/PM format
 };

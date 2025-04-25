@@ -42,19 +42,10 @@ export interface ScheduleUpdate {
   title: string;
   description?: string;
   priority?: 'low' | 'medium' | 'high';
-  date?: string;  // Date representation YYYY-MM-DD
-  start_time?: string;  // Time representation (e.g., "3:00 PM")
-  end_time?: string;  // Time representation (e.g., "4:00 PM")
+  start_time?: string;  // Time in 24-hour format (HH:mm)
+  end_time?: string;  // Time in 24-hour format (HH:mm)
   all_day?: boolean;  // Whether it's an all-day event
   recurrence_rule?: string;  // iCal RRULE string
-  
-  // Legacy fields - kept for backward compatibility
-  time?: string; 
-  duration?: number;
-  recurring?: boolean;
-  repeat_days?: string[];
-  frequency?: string;
-  interval?: number;
 }
 
 export interface IdeaUpdate {

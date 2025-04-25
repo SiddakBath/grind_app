@@ -25,8 +25,7 @@ Deno.serve(async (req)=>{
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || '';
     // Parse request body
-    const requestData = await req.json();
-    const { query, userId, chatHistory, sessionId } = requestData;
+    const { query, userId, chatHistory, sessionId } = await req.json();
     // Initialize clients
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const openai = new OpenAI({
@@ -201,7 +200,7 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
         } else if (functionName === 'create_schedule_item') {
           const newItem = {
             ...functionArgs,
-            user_id: userId
+            user_id: userId,
           };
           const savedItem = await DatabaseService.saveScheduleItem(supabase, newItem);
           if (savedItem) {
@@ -218,7 +217,7 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
         } else if (functionName === 'update_schedule_item') {
           const updateItem = {
             ...functionArgs,
-            user_id: userId
+            user_id: userId,
           };
           const savedItem = await DatabaseService.saveScheduleItem(supabase, updateItem);
           if (savedItem) {

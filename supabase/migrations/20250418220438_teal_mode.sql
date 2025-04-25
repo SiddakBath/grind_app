@@ -12,8 +12,12 @@
       - `id` (uuid, primary key)
       - `user_id` (uuid) - References profiles
       - `title` (text)
-      - `time` (timestamp)
+      - `start_time` (timestamp)
+      - `end_time` (timestamp)
+      - `description` (text)
       - `priority` (text)
+      - `all_day` (boolean)
+      - `recurrence_rule` (text)
       - `created_at` (timestamp)
       - `updated_at` (timestamp)
     
@@ -51,8 +55,12 @@ CREATE TABLE IF NOT EXISTS schedule_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   title text NOT NULL,
-  time timestamptz NOT NULL,
-  priority text CHECK (priority IN ('high', 'medium', 'low')) NOT NULL,
+  start_time timestamptz NOT NULL,
+  end_time timestamptz NOT NULL,
+  description text,
+  priority text CHECK (priority IN ('high', 'medium', 'low')),
+  all_day boolean DEFAULT false,
+  recurrence_rule text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );

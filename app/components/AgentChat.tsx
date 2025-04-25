@@ -443,28 +443,44 @@ export default function AgentChat({ className }: AgentChatProps) {
         const formatTime = (timeStr: string) => {
           if (!timeStr) return '';
           
-          // Parse the ISO date string
-          const date = new Date(timeStr);
+          // If it's an ISO date string, parse it
+          try {
+            const date = new Date(timeStr);
+            if (!isNaN(date.getTime())) {
+              // Format as 12-hour time with proper timezone handling
+              return date.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                timeZone: 'UTC' // Use UTC to avoid timezone conversion issues
+              });
+            }
+          } catch (e) {
+            console.error('Error parsing date:', e);
+          }
           
-          // Format time in 12-hour format with AM/PM
-          return date.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          });
+          // If it's a simple time string like "3:00 PM" or "15:00", return as is
+          if (timeStr.includes(':') || /^\d+$/.test(timeStr)) {
+            return timeStr;
+          }
+          
+          // Return the original string if parsing failed
+          return timeStr;
         };
+
+        console.log(data.scheduleItems[0]);
         
         return (
           <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
             <div className="font-medium text-sm">{data.count} schedule item{data.count !== 1 ? 's' : ''}</div>
             {data.scheduleItems.length > 0 ? (
               <div className="space-y-1">
-                {data.scheduleItems.map((item: any, i: number) => (
+                {data.scheduleItems[0].map((item: any, i: number) => (
                   <div key={i} className="bg-black/5 p-1.5 rounded-sm text-xs mt-1">
                     <div className="flex justify-between items-center">
                       <span className="font-medium text-sm">{item.title}</span>
                       <span className="text-muted-foreground text-xs">
-                        • {formatTime(item.start_time)}-{formatTime(item.end_time)}
+                        {formatTime(item.start_time)}-{formatTime(item.end_time)}
                       </span>
                     </div>
                     {item.recurring && (

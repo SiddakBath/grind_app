@@ -25,16 +25,10 @@ interface ScheduleItem {
   date?: string;
   description?: string | null;
   priority: 'high' | 'medium' | 'low' | null;
-  start_time: string;  // Formatted time display (e.g., "3:00 PM")
-  end_time: string;    // Formatted time display (e.g., "4:00 PM")
+  start_time: string;  // 24-hour format (HH:mm)
+  end_time: string;    // 24-hour format (HH:mm)
   all_day: boolean;
   recurrence_rule?: string | null;  // iCal format
-  
-  // Legacy fields for compatibility with UI
-  time?: string;
-  duration?: number;
-  recurring?: 'daily' | 'weekly' | 'monthly' | null;
-  repeat_days?: string[]; // Specific days to repeat on
 }
 
 // Define a UI-specific interface instead of extending the ScheduleUpdate
@@ -49,72 +43,14 @@ interface UIScheduleUpdate {
   end_time?: string;
   all_day?: boolean;
   recurrence_rule?: string;
-  
-  // UI-specific fields
-  time?: string;
-  duration?: number;
-  recurring?: 'daily' | 'weekly' | 'monthly' | null;
-  repeat_days?: string[];
-  frequency?: string;
-  interval?: number;
 }
 
 // Transform database items to UI format
 function transformDbItemToUi(item: SupabaseScheduleItem): ScheduleItem {
-  // Extract recurrence info if available
-  let recurring: 'daily' | 'weekly' | 'monthly' | null = null;
-  let repeat_days: string[] | undefined = undefined;
-  
-  if (item.recurrence_rule) {
-    const ruleParts = item.recurrence_rule.split(';');
-    const freqPart = ruleParts.find((p: string) => p.startsWith('FREQ='));
-    
-    // Convert RRULE frequency to our UI representation
-    if (freqPart) {
-      const freq = freqPart.split('=')[1];
-      switch (freq) {
-        case 'DAILY':
-          recurring = 'daily';
-          break;
-        case 'WEEKLY':
-          recurring = 'weekly';
-          break;
-        case 'MONTHLY':
-          recurring = 'monthly';
-          break;
-        default:
-          recurring = null;
-      }
-    }
-    
-    // Extract days for weekly recurrence
-    if (recurring === 'weekly') {
-      const bydayPart = ruleParts.find((p: string) => p.startsWith('BYDAY='));
-      if (bydayPart) {
-        const dayAbbrs = bydayPart.split('=')[1].split(',');
-        const dayMap: Record<string, string> = {
-          'MO': 'monday', 'TU': 'tuesday', 'WE': 'wednesday', 
-          'TH': 'thursday', 'FR': 'friday', 'SA': 'saturday', 'SU': 'sunday'
-        };
-        repeat_days = dayAbbrs.map((abbr: string) => dayMap[abbr] || abbr.toLowerCase());
-      }
-    }
-  }
-  
-  // Calculate duration in minutes between start and end for legacy support
-  const startDate = parseISO(item.start_time);
-  const endDate = parseISO(item.end_time);
-  const duration = differenceInMinutes(endDate, startDate);
-  
-  // Use existing UI fields for compatibility
   return {
     ...item,
-    time: item.start_time, // For backward compatibility
-    start_time: item.start_time_display || item.start_time,
-    end_time: item.end_time_display || item.end_time,
-    recurring,
-    repeat_days,
-    duration,
+    start_time: item.start_time,
+    end_time: item.end_time,
     all_day: item.all_day,
     description: item.description
   };
@@ -122,57 +58,14 @@ function transformDbItemToUi(item: SupabaseScheduleItem): ScheduleItem {
 
 // Transform UI item to database format
 function transformUiItemToDb(item: Partial<UIScheduleUpdate>): ScheduleUpdate {
-  // Convert the recurring and repeat_days information to recurrence_rule if available
-  let recurrence_rule: string | undefined = undefined;
-  
-  if (typeof item.recurring === 'string') {
-    let frequency: string;
-    
-    // Map our UI representation to RRULE frequency
-    switch (item.recurring) {
-      case 'daily':
-        frequency = 'DAILY';
-        break;
-      case 'weekly':
-        frequency = 'WEEKLY';
-        break;
-      case 'monthly':
-        frequency = 'MONTHLY';
-        break;
-      default:
-        frequency = 'DAILY';
-    }
-    
-    // Start building the recurrence rule
-    recurrence_rule = `FREQ=${frequency};INTERVAL=1`;
-    
-    // Add specific days for weekly recurrence
-    if (item.recurring === 'weekly' && item.repeat_days && item.repeat_days.length > 0) {
-      const dayMap: Record<string, string> = {
-        'monday': 'MO', 'tuesday': 'TU', 'wednesday': 'WE', 
-        'thursday': 'TH', 'friday': 'FR', 'saturday': 'SA', 'sunday': 'SU'
-      };
-      
-      const days = item.repeat_days
-        .map(day => dayMap[day.toLowerCase()] || day.toUpperCase())
-        .join(',');
-        
-      recurrence_rule += `;BYDAY=${days}`;
-    }
-  }
-  
-  // Convert to the updated schema format
   return {
     title: item.title || '',
     description: item.description,
-    date: item.date,
-    start_time: item.start_time || item.time,
+    start_time: item.start_time,
     end_time: item.end_time,
     all_day: item.all_day,
     priority: item.priority,
-    recurrence_rule,
-    // Set boolean recurring flag based on presence of string recurring value
-    recurring: typeof item.recurring === 'string'
+    recurrence_rule: item.recurrence_rule
   };
 }
 
@@ -192,6 +85,27 @@ interface SchedulePanelProps {
   updates?: ScheduleUpdate[];
   isExpanded?: boolean;
   onExpandToggle?: (isExpanded: boolean) => void;
+}
+
+// Calculate duration in minutes between two times
+function calculateDuration(startTime: string, endTime: string): number {
+  // Parse time strings in 24-hour format (HH:mm)
+  const [startHours, startMinutes] = startTime.split(':').map(Number);
+  const [endHours, endMinutes] = endTime.split(':').map(Number);
+  
+  // Calculate total minutes
+  const startTotalMinutes = startHours * 60 + startMinutes;
+  const endTotalMinutes = endHours * 60 + endMinutes;
+  
+  return endTotalMinutes - startTotalMinutes;
+}
+
+// Format time for display (12-hour format)
+function formatTimeForDisplay(time: string): string {
+  const [hours, minutes] = time.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
 }
 
 export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, onExpandToggle }: SchedulePanelProps) {
@@ -260,23 +174,15 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
   useEffect(() => {
     if (updates.length > 0) {
       const newItems: ScheduleItem[] = updates.map(update => {
-        // Convert update format to our UI format
-        const timeString = update.start_time || "12:00";
-        
         return {
           id: Date.now().toString() + Math.random().toString(36).substring(2),
           title: update.title,
-          date: update.date,
           start_time: update.start_time || "12:00",
           end_time: update.end_time || "13:00",
           description: update.description,
           priority: update.priority as 'high' | 'medium' | 'low' || 'medium',
           all_day: update.all_day || false,
-          recurrence_rule: update.recurrence_rule,
-          
-          // Legacy support
-          time: update.start_time || update.time,
-          duration: update.duration || 60
+          recurrence_rule: update.recurrence_rule
         };
       });
       
@@ -292,7 +198,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
       return item.date === formattedDate;
     }
     
-    // Check recurrence rule first if available
+    // Check recurrence rule if available
     if (item.recurrence_rule) {
       const ruleParts = item.recurrence_rule.split(';');
       const freqPart = ruleParts.find(p => p.startsWith('FREQ='));
@@ -325,27 +231,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
       }
     }
     
-    // Legacy support
-    if (item.recurring === 'daily') {
-      return true;
-    }
-    
-    if (item.recurring === 'weekly' && item.repeat_days && item.repeat_days.length > 0) {
-      const dayName = dayMapping[getDay(date)];
-      return item.repeat_days.includes(dayName);
-    }
-    
-    if (item.recurring === 'weekly' && !item.repeat_days) {
-      const itemDate = item.date ? new Date(item.date) : new Date();
-      return itemDate.getDay() === date.getDay();
-    }
-    
-    if (item.recurring === 'monthly') {
-      const itemDate = item.date ? new Date(item.date) : new Date();
-      return itemDate.getDate() === date.getDate();
-    }
-    
-    // Non-recurring items - exact date match
+    // If no recurrence rule, check if the dates match
     const formattedDate = format(date, 'yyyy-MM-dd');
     return item.date === formattedDate;
   };
@@ -385,8 +271,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
     
     // Then group timed events
     items.filter(item => !item.all_day).forEach(item => {
-      // Use start_time for grouping
-      const timeKey = item.start_time.split(' ')[0];
+      // Use formatted start_time for grouping
+      const timeKey = formatTimeForDisplay(item.start_time).split(' ')[0];
       if (!groups[timeKey]) {
         groups[timeKey] = [];
       }
@@ -426,16 +312,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
         description: newTask.description,
         priority: newTask.priority as 'high' | 'medium' | 'low' || 'medium',
         all_day: newTask.all_day || false,
-        recurrence_rule: taskToAdd.recurrence_rule,
-        
-        // Legacy support
-        time: newTask.start_time,
-        recurring: newTask.recurring,
-        repeat_days: newTask.repeat_days,
-        duration: differenceInMinutes(
-          new Date(`2023-01-01T${newTask.end_time || '13:00'}`), 
-          new Date(`2023-01-01T${newTask.start_time}`)
-        ) || 60
+        recurrence_rule: taskToAdd.recurrence_rule
       };
       
       setScheduleItems(prev => [...prev, newItemToAdd]);
@@ -641,13 +518,11 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                     <label htmlFor="recurring" className="text-right">Recurrence</label>
                     <div className="col-span-3">
                       <Select 
-                        value={newTask.recurring || 'none'} 
+                        value={newTask.recurrence_rule || 'none'} 
                         onValueChange={(value) => {
                           if (value === 'none') {
                             setNewTask({
                               ...newTask, 
-                              recurring: undefined,
-                              repeat_days: [],
                               recurrence_rule: undefined
                             });
                           } else {
@@ -656,7 +531,6 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                             
                             setNewTask({
                               ...newTask, 
-                              recurring: value as 'daily' | 'weekly' | 'monthly',
                               recurrence_rule: recurrenceRule
                             });
                           }
@@ -674,68 +548,6 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                       </Select>
                     </div>
                   </div>
-                  
-                  {(newTask.recurring as string) === 'weekly' && (
-                    <div className="grid grid-cols-4 items-start gap-4">
-                      <label className="text-right pt-2">Repeat on</label>
-                      <div className="col-span-3 grid grid-cols-7 gap-2">
-                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
-                          <div key={day} className="flex flex-col items-center">
-                            <Checkbox
-                              id={`day-${day}`} 
-                              checked={(newTask.repeat_days || []).includes(day)}
-                              onCheckedChange={(checked) => {
-                                let newRepeatDays: string[];
-                                
-                                if (checked) {
-                                  newRepeatDays = [...(newTask.repeat_days || []), day];
-                                } else {
-                                  newRepeatDays = (newTask.repeat_days || []).filter(d => d !== day);
-                                }
-                                
-                                // Update repeat_days
-                                setNewTask(prev => ({
-                                  ...prev,
-                                  repeat_days: newRepeatDays
-                                }));
-                                
-                                // Also update recurrence_rule
-                                if (newRepeatDays.length > 0) {
-                                  // Convert day names to two-letter abbreviations: MO, TU, WE, TH, FR, SA, SU
-                                  const dayMap: Record<string, string> = {
-                                    'monday': 'MO', 'tuesday': 'TU', 'wednesday': 'WE', 
-                                    'thursday': 'TH', 'friday': 'FR', 'saturday': 'SA', 'sunday': 'SU'
-                                  };
-                                  
-                                  const bydayStr = newRepeatDays
-                                    .map(d => dayMap[d] || d.toUpperCase())
-                                    .join(',');
-                                    
-                                    const recurrenceRule = `FREQ=WEEKLY;INTERVAL=1;BYDAY=${bydayStr}`;
-                                    
-                                    setNewTask(prev => ({
-                                      ...prev,
-                                      recurrence_rule: recurrenceRule
-                                    }));
-                                  } else {
-                                    setNewTask(prev => ({
-                                      ...prev,
-                                      recurrence_rule: 'FREQ=WEEKLY;INTERVAL=1'
-                                    }));
-                                  }
-                              }}
-                            />
-                            <label 
-                              htmlFor={`day-${day}`} 
-                              className="text-xs mt-1"
-                            >
-                              {day.charAt(0).toUpperCase() + day.slice(1, 3)}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
                 <DialogFooter>
                   <Button 
@@ -756,7 +568,6 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
         isExpanded && "px-6"
       )}>
         {viewMode === 'day' ? (
-          // Day view with items grouped by time
           <div className={isExpanded ? "max-w-4xl mx-auto" : ""}>
             {scheduleItems.length > 0 ? (
               <div className="space-y-4">
@@ -784,8 +595,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                             item.id === scheduleItems[scheduleItems.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
                           )}
                           style={{
-                            minHeight: item.all_day ? '80px' : `${Math.max(80, (item.duration || 60) / 15 * 20)}px`, // Scale height based on duration
-                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.5rem)') : '100%' // Side by side if multiple items
+                            minHeight: item.all_day ? '80px' : `${Math.max(80, calculateDuration(item.start_time, item.end_time) / 15 * 20)}px`,
+                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.5rem)') : '100%'
                           }}
                         >
                           <div className={cn(
@@ -798,19 +609,18 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                             <p className="font-medium leading-none">{item.title}</p>
                             <div className="flex items-center text-sm text-muted-foreground">
                               {item.all_day ? (
-                                <Badge variant="outline" className="mr-2">All Day</Badge>
+                                <span>[All Day]</span>
                               ) : (
                                 <>
                                   <Clock className="mr-1 h-3 w-3" />
-                                  <span>{item.start_time} - {item.end_time}</span>
+                                  <span>
+                                    {formatTimeForDisplay(item.start_time)} - {formatTimeForDisplay(item.end_time)} ({calculateDuration(item.start_time, item.end_time)} min)
+                                  </span>
                                 </>
                               )}
                               {item.recurrence_rule && (
                                 <Badge className="ml-2" variant="outline">
-                                  {item.recurring || 'Recurring'}
-                                  {item.recurring === 'weekly' && item.repeat_days && item.repeat_days.length > 0 && (
-                                    <span className="ml-1">({item.repeat_days.map(d => d.charAt(0).toUpperCase()).join(',')})</span>
-                                  )}
+                                  {item.recurrence_rule.split(';')[0].split('=')[1]}
                                 </Badge>
                               )}
                             </div>
@@ -848,8 +658,6 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
             )}
           </div>
         ) : (
-          // Week view with items laid out in a grid
-          // Week view
           <div className={cn(
             "grid grid-cols-7 gap-2",
             isExpanded && "gap-4"
@@ -883,17 +691,18 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                             item.priority === 'low' && "border-l-2 border-green-500"
                           )}
                           style={{
-                            height: `${Math.max(24, (item.duration || 60) / 30 * 12)}px`, // Scale height based on duration
+                            height: `${Math.max(24, calculateDuration(item.start_time, item.end_time) / 30 * 12)}px`,
                           }}
                         >
                           <div className="truncate flex-1">
                             <span className="font-medium">{item.title}</span>
-                            <span className="text-muted-foreground ml-1">
-                              {item.all_day ? 
-                                '[All Day]' : 
-                                (item.start_time ? item.start_time.split(' ')[0] : (item.time ? item.time.split(' ')[0] : ''))
-                              }
-                            </span>
+                            <div className="text-sm text-muted-foreground">
+                              {item.all_day ? (
+                                '[All Day]'
+                              ) : (
+                                `${formatTimeForDisplay(item.start_time)} - ${formatTimeForDisplay(item.end_time)} (${calculateDuration(item.start_time, item.end_time)} min)`
+                              )}
+                            </div>
                           </div>
                           <Button 
                             variant="ghost" 

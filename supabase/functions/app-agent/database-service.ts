@@ -11,7 +11,6 @@ interface ScheduleItem {
   priority?: string;
   all_day?: boolean;
   recurrence_rule?: string;
-  date?: string;
   recurring?: boolean;
   repeat_days?: string[];
   frequency?: string;
@@ -46,33 +45,25 @@ export const DatabaseService = {
       console.error('Error fetching schedule items:', error);
       return [];
     }
-    // Process the data for display as in the database-service.ts
+    // Process the data for display
     return (data || []).map((item: any)=>{
       // Convert timestamp to date string and time string
       const startDate = new Date(item.start_time);
       const endDate = new Date(item.end_time);
       
-      // Format date for display (YYYY-MM-DD)
-      const year = startDate.getFullYear();
-      const month = (startDate.getMonth() + 1).toString().padStart(2, '0');
-      const day = startDate.getDate().toString().padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      
       // Format the start time for display (12-hour format)
-      let startHours = startDate.getHours();
-      const startMinutes = startDate.getMinutes();
-      const startAmpm = startHours >= 12 ? 'PM' : 'AM';
-      startHours = startHours % 12;
-      startHours = startHours ? startHours : 12; // Convert 0 to 12
-      const startTimeStr = `${startHours}:${startMinutes.toString().padStart(2, '0')} ${startAmpm}`;
+      const startTimeStr = startDate.toLocaleTimeString('en-US', { 
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
       
       // Format the end time for display (12-hour format)
-      let endHours = endDate.getHours();
-      const endMinutes = endDate.getMinutes();
-      const endAmpm = endHours >= 12 ? 'PM' : 'AM';
-      endHours = endHours % 12;
-      endHours = endHours ? endHours : 12; // Convert 0 to 12
-      const endTimeStr = `${endHours}:${endMinutes.toString().padStart(2, '0')} ${endAmpm}`;
+      const endTimeStr = endDate.toLocaleTimeString('en-US', { 
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
       
       // Parse recurrence rule if present
       let recurring = false;
@@ -96,7 +87,6 @@ export const DatabaseService = {
       
       return {
         ...item,
-        date: dateStr,
         start_time: startTimeStr,
         end_time: endTimeStr,
         recurring,
@@ -141,125 +131,39 @@ export const DatabaseService = {
     return data;
   },
   async saveScheduleItem (supabase: SupabaseClient, item: ScheduleItem) {
-    // Process date and time if provided separately
-    if (item.date) {
-      const dateStr = item.date;
-      const startTimeStr = item.start_time || "12:00";
-      const endTimeStr = item.end_time || item.start_time ? (item.start_time + " +1 hour") : "13:00";
-      
-      // Parse date components
-      const [year, month, day] = dateStr.split('-').map(Number);
-      
-      // Parse start time components
-      let startHour = 0;
-      let startMinute = 0;
-      
-      // Handle different time formats for start time
-      if (startTimeStr.includes(':')) {
-        // Format like "3:00 PM" or "15:00"
-        let [hourStr, minuteStr] = startTimeStr.split(':');
-        // Extract only numbers from minute string
-        minuteStr = minuteStr.replace(/[^\d]/g, '');
-        startHour = parseInt(hourStr);
-        startMinute = parseInt(minuteStr);
-        // Handle AM/PM if present
-        const isPM = startTimeStr.toLowerCase().includes('pm');
-        if (isPM && startHour < 12) startHour += 12;
-        if (!isPM && startHour === 12 && startTimeStr.toLowerCase().includes('am')) startHour = 0;
-      } else {
-        // Handle numeric time like "1500" for 15:00
-        if (/^\d+$/.test(startTimeStr)) {
-          const timeNum = parseInt(startTimeStr);
-          startHour = Math.floor(timeNum / 100);
-          startMinute = timeNum % 100;
-        } else {
-          // Default time
-          startHour = 12;
-          startMinute = 0;
-        }
-      }
-      
-      // Parse end time components or default to start time + 1 hour
-      let endHour = startHour + 1;
-      let endMinute = startMinute;
-      
-      if (endTimeStr && endTimeStr !== (startTimeStr + " +1 hour")) {
-        if (endTimeStr.includes(':')) {
-          let [hourStr, minuteStr] = endTimeStr.split(':');
-          minuteStr = minuteStr.replace(/[^\d]/g, '');
-          endHour = parseInt(hourStr);
-          endMinute = parseInt(minuteStr);
-          const isPM = endTimeStr.toLowerCase().includes('pm');
-          if (isPM && endHour < 12) endHour += 12;
-          if (!isPM && endHour === 12 && endTimeStr.toLowerCase().includes('am')) endHour = 0;
-        } else if (/^\d+$/.test(endTimeStr)) {
-          const timeNum = parseInt(endTimeStr);
-          endHour = Math.floor(timeNum / 100);
-          endMinute = timeNum % 100;
-        }
-      }
-      
-      // Make sure end time is after start time
-      if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
-        endHour = startHour + 1;
-        endMinute = startMinute;
-      }
-      
-      // Create date objects in local timezone
-      const startDate = new Date(year, month - 1, day, startHour, startMinute);
-      const endDate = new Date(year, month - 1, day, endHour, endMinute);
-      
-      // Convert to ISO string for storage
-      item.start_time = startDate.toISOString();
-      item.end_time = endDate.toISOString();
+    // Convert time strings to ISO timestamps
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Parse hours and minutes from the time strings
+    const [startHours, startMinutes] = parseTimeString(item.start_time);
+    const [endHours, endMinutes] = parseTimeString(item.end_time);
+    
+    // Create date objects
+    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), startHours, startMinutes);
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), endHours, endMinutes);
+    
+    // Ensure the dates are valid
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      console.error(`Invalid date created from: ${todayStr} ${item.start_time} / ${item.end_time}`);
+      return null;
     }
     
-    // Convert recurrence information
-    if (item.recurring) {
-      // Simple conversion from old format to RRULE format
-      const frequency = item.frequency || 'DAILY';
-      const interval = item.interval || 1;
-      
-      // If there are specific days, add them to the rule
-      let byDayPart = '';
-      if (item.repeat_days && item.repeat_days.length > 0) {
-        // Convert day names to two-letter abbreviations: MO, TU, WE, TH, FR, SA, SU
-        const dayMap: Record<string, string> = {
-          'Monday': 'MO', 'Tuesday': 'TU', 'Wednesday': 'WE', 'Thursday': 'TH',
-          'Friday': 'FR', 'Saturday': 'SA', 'Sunday': 'SU'
-        };
-        
-        const days = item.repeat_days
-          .map((day: string) => dayMap[day] || day)
-          .join(',');
-          
-        byDayPart = `;BYDAY=${days}`;
-      }
-      
-      item.recurrence_rule = `FREQ=${frequency};INTERVAL=${interval}${byDayPart}`;
-      
-      // Remove old fields that are now part of recurrence_rule
-      delete item.recurring;
-      delete item.repeat_days;
-      delete item.frequency;
-      delete item.interval;
-    }
+    // Convert to ISO string for storage in the database
+    const startTimestamp = startDate.toISOString();
+    const endTimestamp = endDate.toISOString();
     
-    // Prepare the item for database insertion/update
-    const scheduleItem = {
+    // Create a new schedule item
+    const { data, error } = await supabase.from('schedule_items').insert({
       user_id: item.user_id,
       title: item.title,
-      start_time: item.start_time,
-      end_time: item.end_time,
+      start_time: startTimestamp,
+      end_time: endTimestamp,
       description: item.description,
       priority: item.priority,
-      all_day: item.all_day || false,
+      all_day: item.all_day,
       recurrence_rule: item.recurrence_rule
-    };
-    
-    // If ID exists, update, otherwise insert
-    const operation = item.id ? supabase.from('schedule_items').update(scheduleItem).eq('id', item.id) : supabase.from('schedule_items').insert(scheduleItem);
-    const { data, error } = await operation.select().single();
+    }).select();
     if (error) {
       console.error('Error saving schedule item:', error);
       return null;
@@ -325,4 +229,37 @@ export const DatabaseService = {
     }
     return true;
   }
-}; 
+};
+
+// Helper function to parse time string
+function parseTimeString(timeStr: string): [number, number] {
+  let hours = 12;
+  let minutes = 0;
+  
+  if (timeStr.includes(':')) {
+    // Handle formats like "3:00 PM" or "15:00"
+    let [hourStr, minuteStr] = timeStr.split(':');
+    
+    // Extract only numbers from minute string
+    minuteStr = minuteStr.replace(/[^\d]/g, '');
+    
+    hours = parseInt(hourStr);
+    minutes = parseInt(minuteStr);
+    
+    // Handle AM/PM if present
+    const isPM = timeStr.toLowerCase().includes('pm');
+    if (isPM && hours < 12) hours += 12;
+    if (!isPM && hours === 12 && timeStr.toLowerCase().includes('am')) hours = 0;
+  } else if (/^\d+$/.test(timeStr)) {
+    // Handle numeric time like "1500" for 15:00
+    const timeNum = parseInt(timeStr);
+    hours = Math.floor(timeNum / 100);
+    minutes = timeNum % 100;
+  }
+  
+  // Validate hours and minutes
+  if (isNaN(hours) || hours < 0 || hours > 23) hours = 12;
+  if (isNaN(minutes) || minutes < 0 || minutes > 59) minutes = 0;
+  
+  return [hours, minutes];
+} 

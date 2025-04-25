@@ -1,5 +1,14 @@
 -- Add new columns to schedule_items table
 ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS description TEXT;
-ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 60;
-ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS recurring TEXT CHECK (recurring IN ('daily', 'weekly', 'monthly'));
-ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS repeat_days TEXT[]; -- Array of days to repeat on 
+ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS start_time TIMESTAMPTZ;
+ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ;
+ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS all_day BOOLEAN DEFAULT false;
+ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS recurrence_rule TEXT;
+
+-- Drop legacy columns
+ALTER TABLE schedule_items DROP COLUMN IF EXISTS time;
+ALTER TABLE schedule_items DROP COLUMN IF EXISTS duration;
+ALTER TABLE schedule_items DROP COLUMN IF EXISTS recurring;
+ALTER TABLE schedule_items DROP COLUMN IF EXISTS repeat_days;
+ALTER TABLE schedule_items DROP COLUMN IF EXISTS frequency;
+ALTER TABLE schedule_items DROP COLUMN IF EXISTS interval; 
