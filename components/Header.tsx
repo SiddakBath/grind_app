@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Bell, LogOut, Loader2, Menu, X, Bot } from 'lucide-react';
+import { Bell, LogOut, Loader2, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSupabase } from '@/app/supabase-provider';
 import { useToast } from '@/hooks/use-toast';
@@ -70,7 +70,7 @@ export function Header() {
         {/* Logo */}
         <div className="flex items-center">
           <Link href="/" className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary rounded-md">
-            <Bot className="h-6 w-6 mr-2 text-blue-500" />
+            <img src="/logo.png" alt="hustlebro.ai logo" className="h-10 w-auto mr-2" />
             <span className="font-bold text-2xl text-black dark:text-white">
               hustlebro.ai
             </span>

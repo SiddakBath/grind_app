@@ -34,7 +34,7 @@ export default function AgentChat({ className }: AgentChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { supabase, session } = useSupabase();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionIdRef = useRef<string>(generateSessionId());
 
@@ -75,7 +75,7 @@ export default function AgentChat({ className }: AgentChatProps) {
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   // Generate a unique ID for each message
@@ -720,7 +720,7 @@ export default function AgentChat({ className }: AgentChatProps) {
           
           {/* Messages */}
           {messages.length > 0 && (
-            <div className="max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 py-6 bg-gradient-to-b from-background/60 to-background space-y-6">
+            <div ref={containerRef} className="max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 py-6 bg-gradient-to-b from-background/60 to-background space-y-6">
               {messages.map((msg) => (
                 <div 
                   key={msg.id} 
@@ -788,7 +788,6 @@ export default function AgentChat({ className }: AgentChatProps) {
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
           )}
         

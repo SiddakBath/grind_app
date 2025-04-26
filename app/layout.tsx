@@ -15,6 +15,11 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'hustlebro.ai - Your Intelligent Assistant',
   description: 'A futuristic AI assistant that helps manage your schedule, ideas, and habits',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default async function RootLayout({
