@@ -123,25 +123,19 @@ export const DatabaseService = {
         
       if (error) throw error;
       
-      return (data || []).map(item => {
-        // Extract time from ISO string (HH:mm)
-        const startTime = item.start_time.split('T')[1].substring(0, 5);
-        const endTime = item.end_time.split('T')[1].substring(0, 5);
-        
-        return {
-          id: item.id,
-          title: item.title,
-          start_time: startTime,
-          end_time: endTime,
-          description: item.description,
-          priority: item.priority,
-          all_day: item.all_day,
-          recurrence_rule: item.recurrence_rule,
-          user_id: item.user_id,
-          created_at: item.created_at,
-          updated_at: item.updated_at
-        };
-      });
+      return (data || []).map(item => ({
+        id: item.id,
+        title: item.title,
+        start_time: item.start_time,  // Keep full ISO timestamp
+        end_time: item.end_time,      // Keep full ISO timestamp
+        description: item.description,
+        priority: item.priority,
+        all_day: item.all_day,
+        recurrence_rule: item.recurrence_rule,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      }));
     } catch (error) {
       console.error('Error fetching schedule items:', error);
       throw new Error('Failed to fetch schedule items');

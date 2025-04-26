@@ -24,6 +24,8 @@ export interface AgentRequest {
   userId: string;
   chatHistory: ChatMessage[];
   sessionId: string;
+  currentDate?: string; // ISO format date string (YYYY-MM-DD)
+  currentTime?: string; // Time in HH:MM format
 }
 
 export interface ChatMessage {
@@ -92,6 +94,12 @@ export const AIService = {
         throw new Error('No valid session token');
       }
       
+      // Get current date in ISO format (YYYY-MM-DD)
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Get current time in HH:MM format
+      const currentTime = new Date().toTimeString().split(' ')[0].slice(0, 5);
+      
       // Call the edge function
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/app-agent`, {
         method: 'POST',
@@ -103,7 +111,9 @@ export const AIService = {
           query,
           userId: user.id,
           chatHistory,
-          sessionId
+          sessionId,
+          currentDate,
+          currentTime
         } as AgentRequest)
       });
       

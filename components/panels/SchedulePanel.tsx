@@ -22,11 +22,10 @@ import { EVENTS } from '@/app/supabase-provider';
 interface ScheduleItem {
   id: string;
   title: string;
-  date?: string;
   description?: string | null;
   priority: 'high' | 'medium' | 'low' | null;
-  start_time: string;  // 24-hour format (HH:mm)
-  end_time: string;    // 24-hour format (HH:mm)
+  start_time: string;  // ISO format timestamp
+  end_time: string;    // ISO format timestamp
   all_day: boolean;
   recurrence_rule?: string | null;  // iCal format
 }
@@ -38,7 +37,6 @@ interface UIScheduleUpdate {
   title: string;
   description?: string;
   priority?: 'low' | 'medium' | 'high';
-  date?: string;
   start_time?: string;
   end_time?: string;
   all_day?: boolean;
@@ -48,11 +46,14 @@ interface UIScheduleUpdate {
 // Transform database items to UI format
 function transformDbItemToUi(item: SupabaseScheduleItem): ScheduleItem {
   return {
-    ...item,
+    id: item.id,
+    title: item.title,
     start_time: item.start_time,
     end_time: item.end_time,
     all_day: item.all_day,
-    description: item.description
+    description: item.description,
+    priority: item.priority,
+    recurrence_rule: item.recurrence_rule
   };
 }
 
@@ -89,9 +90,13 @@ interface SchedulePanelProps {
 
 // Calculate duration in minutes between two times
 function calculateDuration(startTime: string, endTime: string): number {
-  // Parse time strings in 24-hour format (HH:mm)
-  const [startHours, startMinutes] = startTime.split(':').map(Number);
-  const [endHours, endMinutes] = endTime.split(':').map(Number);
+  // Handle full ISO timestamps
+  const startStr = startTime.includes('T') ? startTime.split('T')[1].substring(0, 5) : startTime;
+  const endStr = endTime.includes('T') ? endTime.split('T')[1].substring(0, 5) : endTime;
+  
+  // Parse time strings
+  const [startHours, startMinutes] = startStr.split(':').map(Number);
+  const [endHours, endMinutes] = endStr.split(':').map(Number);
   
   // Calculate total minutes
   const startTotalMinutes = startHours * 60 + startMinutes;
@@ -102,7 +107,9 @@ function calculateDuration(startTime: string, endTime: string): number {
 
 // Format time for display (12-hour format)
 function formatTimeForDisplay(time: string): string {
-  const [hours, minutes] = time.split(':').map(Number);
+  // Extract time portion from ISO string if it's a full timestamp
+  const timeStr = time.includes('T') ? time.split('T')[1].substring(0, 5) : time;
+  const [hours, minutes] = timeStr.split(':').map(Number);
   const period = hours >= 12 ? 'PM' : 'AM';
   const displayHours = hours % 12 || 12;
   return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
@@ -118,9 +125,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
   const [newTask, setNewTask] = useState<Partial<UIScheduleUpdate>>({
     title: '',
     description: '',
-    date: format(new Date(), 'yyyy-MM-dd'),
-    start_time: '09:00',
-    end_time: '10:00',
+    start_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+    end_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     priority: 'medium',
     all_day: false
   });
@@ -192,23 +198,27 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
   
   // Check if a task should be shown on the given date based on recurrence rules
   const shouldShowOnDate = (item: ScheduleItem, date: Date): boolean => {
+    // Extract date from start_time
+    const itemDate = parseISO(item.start_time);
+    const formattedItemDate = format(itemDate, 'yyyy-MM-dd');
+    const formattedTargetDate = format(date, 'yyyy-MM-dd');
+
     // For all-day events, check date only
     if (item.all_day) {
-      const formattedDate = format(date, 'yyyy-MM-dd');
-      return item.date === formattedDate;
+      return formattedItemDate === formattedTargetDate;
     }
-    
+
     // Check recurrence rule if available
     if (item.recurrence_rule) {
       const ruleParts = item.recurrence_rule.split(';');
       const freqPart = ruleParts.find(p => p.startsWith('FREQ='));
-      
+
       if (freqPart) {
         const freq = freqPart.split('=')[1];
-        
+
         // Daily events always show
         if (freq === 'DAILY') return true;
-        
+
         // Weekly events with specific days
         if (freq === 'WEEKLY') {
           const bydayPart = ruleParts.find(p => p.startsWith('BYDAY='));
@@ -218,22 +228,19 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
             return dayAbbrs.includes(currentDayAbbr);
           } else {
             // Weekly but no specific days - use event's original day of week
-            const itemDate = item.date ? new Date(item.date) : new Date();
             return itemDate.getDay() === date.getDay();
           }
         }
-        
+
         // Monthly events - check day of month
         if (freq === 'MONTHLY') {
-          const itemDate = item.date ? new Date(item.date) : new Date();
           return itemDate.getDate() === date.getDate();
         }
       }
     }
-    
+
     // If no recurrence rule, check if the dates match
-    const formattedDate = format(date, 'yyyy-MM-dd');
-    return item.date === formattedDate;
+    return formattedItemDate === formattedTargetDate;
   };
   
   // Helper function to filter schedule items by date
@@ -266,8 +273,10 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
     const groups: Record<string, ScheduleItem[]> = {};
     
     // First group all-day events
-    const allDayKey = 'All Day';
-    groups[allDayKey] = items.filter(item => item.all_day);
+    const allDayEvents = items.filter(item => item.all_day);
+    if (allDayEvents.length > 0) {
+      groups['All Day'] = allDayEvents;
+    }
     
     // Then group timed events
     items.filter(item => !item.all_day).forEach(item => {
@@ -306,9 +315,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
       const newItemToAdd: ScheduleItem = {
         id: Date.now().toString(),
         title: newTask.title!, // Use non-null assertion since we validate above
-        date: newTask.date,
         start_time: newTask.start_time!,
-        end_time: newTask.end_time || "13:00",
+        end_time: newTask.end_time || format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         description: newTask.description,
         priority: newTask.priority as 'high' | 'medium' | 'low' || 'medium',
         all_day: newTask.all_day || false,
@@ -321,9 +329,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
       setNewTask({
         title: '',
         description: '',
-        date: format(new Date(), 'yyyy-MM-dd'),
-        start_time: '09:00',
-        end_time: '10:00',
+        start_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        end_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         priority: 'medium',
         all_day: false
       });
@@ -378,7 +385,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
         height: isExpanded ? 'calc(100vh - 5rem)' : '100%' 
       }}
     >
-      <CardHeader className="flex flex-col space-y-2 pb-2">
+      <CardHeader className="flex flex-col space-y-4 pb-4">
         <div className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-medium flex items-center gap-2">
             <Calendar className="h-5 w-5" />
@@ -391,14 +398,14 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
         </div>
         
         <div className={cn(
-          "flex items-center gap-1",
+          "flex items-center gap-2",
           isExpanded ? "justify-center" : "justify-between"
         )}>
           <Button variant="outline" size="sm" onClick={viewMode === 'day' ? goToPrevDay : goToPrevWeek}>
             <ChevronLeft className="h-3 w-3" />
           </Button>
           
-          <Badge variant="outline" className="font-normal text-center px-3 py-1 min-w-28">
+          <Badge variant="outline" className="font-normal text-center px-4 py-1.5 min-w-32">
             {viewMode === 'day' 
               ? format(currentDate, 'MMM d, yyyy')
               : `${format(weekDays[0], 'MMM d')} - ${format(weekDays[6], 'MMM d')}`
@@ -410,7 +417,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
           </Button>
           
           {isExpanded && (
-            <Button variant="outline" size="sm" onClick={toggleViewMode} className="min-w-16 ml-4">
+            <Button variant="outline" size="sm" onClick={toggleViewMode} className="min-w-20 ml-4">
               <span className="text-xs font-normal">
                 {viewMode === 'day' ? 'Day' : 'Week'}
               </span>
@@ -448,20 +455,10 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="date" className="text-right">Date</label>
-                    <Input 
-                      id="date" 
-                      type="date" 
-                      value={newTask.date} 
-                      onChange={(e) => setNewTask({...newTask, date: e.target.value})}
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="start_time" className="text-right">Start Time</label>
+                    <label htmlFor="start_time" className="text-right">Start</label>
                     <Input 
                       id="start_time" 
-                      type="time" 
+                      type="datetime-local" 
                       value={newTask.start_time} 
                       onChange={(e) => setNewTask({...newTask, start_time: e.target.value})}
                       className="col-span-3"
@@ -469,10 +466,10 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="end_time" className="text-right">End Time</label>
+                    <label htmlFor="end_time" className="text-right">End</label>
                     <Input 
                       id="end_time" 
-                      type="time" 
+                      type="datetime-local" 
                       value={newTask.end_time} 
                       onChange={(e) => setNewTask({...newTask, end_time: e.target.value})}
                       className="col-span-3"
@@ -570,42 +567,42 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
         {viewMode === 'day' ? (
           <div className={isExpanded ? "max-w-4xl mx-auto" : ""}>
             {scheduleItems.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {Object.entries(groupItemsByTime(getItemsForDate(currentDate))).map(([time, items]) => (
-                  <div key={time} className={cn("mb-4", isExpanded && "mb-6")}>
-                    <div className="flex items-center mb-2">
+                  <div key={time} className={cn("mb-6", isExpanded && "mb-8")}>
+                    <div className="flex items-center mb-3">
                       {time === 'All Day' ? (
-                        <Calendar className="mr-1 h-3 w-3" />
+                        <Calendar className="mr-2 h-4 w-4" />
                       ) : (
-                        <Clock className="mr-1 h-3 w-3" />
+                        <Clock className="mr-2 h-4 w-4" />
                       )}
                       <span className="text-sm font-medium">{time}</span>
                     </div>
                     <div className={cn(
-                      "flex flex-wrap gap-2",
+                      "flex flex-wrap gap-3",
                       isExpanded && "gap-4"
                     )}>
                       {items.map((item) => (
                         <div 
                           key={item.id}
                           className={cn(
-                            "flex-1 flex items-start gap-3 p-3 rounded-lg transition-all group",
-                            "hover:bg-muted/50",
-                            isExpanded && "p-4",
+                            "flex-1 flex items-start gap-3 p-4 rounded-lg transition-all group",
+                            "hover:bg-muted/50 border border-border/50",
+                            isExpanded && "p-5",
                             item.id === scheduleItems[scheduleItems.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
                           )}
                           style={{
                             minHeight: item.all_day ? '80px' : `${Math.max(80, calculateDuration(item.start_time, item.end_time) / 15 * 20)}px`,
-                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.5rem)') : '100%'
+                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.75rem)') : '100%'
                           }}
                         >
                           <div className={cn(
-                            "mt-0.5 h-4 w-4 rounded-full",
+                            "mt-1 h-3 w-3 rounded-full",
                             item.priority === 'high' && "bg-destructive",
                             item.priority === 'medium' && "bg-orange-500",
                             item.priority === 'low' && "bg-green-500"
                           )} />
-                          <div className="flex-1 space-y-1">
+                          <div className="flex-1 space-y-2">
                             <p className="font-medium leading-none">{item.title}</p>
                             <div className="flex items-center text-sm text-muted-foreground">
                               {item.all_day ? (
@@ -659,13 +656,13 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
           </div>
         ) : (
           <div className={cn(
-            "grid grid-cols-7 gap-2",
+            "grid grid-cols-7 gap-3",
             isExpanded && "gap-4"
           )}>
             {weekDays.map((day) => (
               <div key={format(day, 'yyyy-MM-dd')} className="flex flex-col">
                 <div className={cn(
-                  "text-center mb-2 font-medium",
+                  "text-center mb-3 font-medium",
                   isToday(day) && "text-primary"
                 )}>
                   {format(day, 'EEE')}
@@ -674,18 +671,18 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                   </div>
                 </div>
                 <div className={cn(
-                  "flex-1 overflow-hidden border rounded-md p-1",
-                  isExpanded && "p-2",
+                  "flex-1 overflow-hidden border rounded-md p-2",
+                  isExpanded && "p-3",
                   isToday(day) && "border-primary/50 bg-primary/5"
                 )} style={{ minHeight: isExpanded ? '300px' : '200px' }}>
                   {getItemsForDate(day).length > 0 ? (
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {getItemsForDate(day).map((item) => (
                         <div 
                           key={`${format(day, 'yyyy-MM-dd')}-${item.id}`}
                           className={cn(
-                            "flex items-start gap-1 p-1 rounded-sm text-xs group relative",
-                            "hover:bg-muted/50",
+                            "flex items-start gap-2 p-2 rounded-sm text-xs group relative",
+                            "hover:bg-muted/50 border border-border/50",
                             item.priority === 'high' && "border-l-2 border-destructive",
                             item.priority === 'medium' && "border-l-2 border-orange-500",
                             item.priority === 'low' && "border-l-2 border-green-500"

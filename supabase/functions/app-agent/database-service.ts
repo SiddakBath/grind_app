@@ -131,9 +131,24 @@ export const DatabaseService = {
     return data;
   },
   async saveScheduleItem (supabase: SupabaseClient, item: ScheduleItem) {
+    // Validate required fields
+    if (!item.start_time) {
+      console.error('Start time is required for schedule items');
+      return null;
+    }
+
+    // If end_time is not provided, set it to 1 hour after start_time
+    if (!item.end_time) {
+      const startDate = new Date(item.start_time);
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
+      item.end_time = endDate.toISOString();
+    }
+
     // Convert time strings to ISO timestamps
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
+    console.log('item.start_time', item.start_time);
+    console.log('item.end_time', item.end_time);
     
     // Parse hours and minutes from the time strings
     const [startHours, startMinutes] = parseTimeString(item.start_time);
@@ -146,6 +161,12 @@ export const DatabaseService = {
     // Ensure the dates are valid
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       console.error(`Invalid date created from: ${todayStr} ${item.start_time} / ${item.end_time}`);
+      return null;
+    }
+    
+    // Ensure end time is after start time
+    if (endDate <= startDate) {
+      console.error('End time must be after start time');
       return null;
     }
     
@@ -235,6 +256,8 @@ export const DatabaseService = {
 function parseTimeString(timeStr: string): [number, number] {
   let hours = 12;
   let minutes = 0;
+
+  console.log('timeStr', timeStr);
   
   if (timeStr.includes(':')) {
     // Handle formats like "3:00 PM" or "15:00"

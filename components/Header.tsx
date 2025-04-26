@@ -71,7 +71,7 @@ export function Header() {
         <div className="flex items-center">
           <Link href="/" className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary rounded-md">
             <Bot className="h-6 w-6 mr-2 text-blue-500" />
-            <span className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">
+            <span className="font-bold text-2xl text-black dark:text-white">
               hustlebro.ai
             </span>
           </Link>

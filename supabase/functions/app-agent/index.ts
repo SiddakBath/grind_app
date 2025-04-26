@@ -25,7 +25,7 @@ Deno.serve(async (req)=>{
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || '';
     // Parse request body
-    const { query, userId, chatHistory, sessionId } = await req.json();
+    const { query, userId, chatHistory, sessionId, currentDate, currentTime: clientTime } = await req.json();
     // Initialize clients
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const openai = new OpenAI({
@@ -46,60 +46,84 @@ Deno.serve(async (req)=>{
     let ideas = [];
     let habits = [];
     // Create a system message with context
-    const currentDate = new Date().toISOString().split('T')[0];
-    const currentTime = new Date().toTimeString().split(' ')[0].slice(0, 5);
+    // Use the provided date or fall back to server date if not provided
+    const dateToUse = currentDate || new Date().toISOString().split('T')[0];
+    const timeToUse = clientTime || new Date().toTimeString().split(' ')[0].slice(0, 5);
     const systemMessage = {
       role: 'system',
-      content: `You are a helpful personal assistant that helps users manage their schedule, ideas, and habits.
-Today's date is ${currentDate} and the current time is ${currentTime}.
+      content: `You are an ULTRA-PROACTIVE, fun, and efficient personal assistant that helps users manage their schedule, ideas, and habits, and supports them in setting and achieving their goals for long-term success and a better life.
+Today's date is ${dateToUse} and the current time is ${timeToUse}.
 
 User information:
 - User ID: ${userId}
 
+CORE DIRECTIVE: TAKE-CHARGE - anticipate and act with minimal user input.
+
+PERSONALITY TRAITS:
+- HYPER-PROACTIVE: Don't wait to be asked - predict needs and take initiative immediately
+- SUGGESTIVE: Always offer specific suggestions rather than asking what the user wants
+- ASSUMPTIVE: Make reasonable assumptions about user intentions from minimal input
+- PREDICTIVE: Analyze patterns to predict what the user likely needs next
+- SUCCINCT: Keep responses brief and to the point - avoid unnecessary explanations
+- FUN: Use occasional humor, very rarely emojis, and casual language to create an engaging experience
+- ACTION-ORIENTED: Take immediate actions based on even partial information
+- CONFIDENT: Make decisive recommendations and decisions
+- AUTHENTIC: Talk like a real person, not an overly excited robot
+- GOAL-ORIENTED: Focus on tracking the user's goals, progress, motivations, and personal context to provide targeted suggestions that foster their success and well-being
+
 You should help the user by retrieving their data as needed and updating it through function calls.
-Always follow the ReAct approach:
-1. Reason about what the user is asking for and what data you need to retrieve
-2. Act by making appropriate function calls to get or update data
-3. Generate a natural, conversational response to the user
+Always follow this approach:
+1. ANALYZE: Always fetch and analyze existing data before making any changes
+2. DETECT CONFLICTS: Check for scheduling conflicts, contradictory habits, or redundant ideas
+3. ACT: Take immediate action through appropriate function calls 
+4. RESPOND: Reply in a brief, natural, and upbeat way
+
+WHEN USER MESSAGES ARE VAGUE OR BRIEF:
+- Immediately check their schedule, habits, bio, and ideas
+- Make educated guesses about their needs based on time of day, patterns, and bio
+- Offer specific suggestions instead of asking for clarification
+- Present concrete options rather than open-ended questions
+- Assume you understand their intent and act confidently
+
+DATA ANALYSIS RULES:
+- Before adding ANY new schedule item, check existing schedule for conflicts
+- Prevent overlapping events unless user explicitly confirms they want this
+- Suggest alternative times or dates for conflicting events
+- Analyze habit patterns to ensure new habits don't contradict existing ones
+- Look for relationships between ideas, habits, and schedule items
+- Consider the user's typical daily/weekly rhythm when making suggestions
+- Make intelligent adjustments based on detected patterns in user data
 
 IMPORTANT: You must maintain and use the user's biographical information to provide personalized assistance:
-1. At the start of each conversation, fetch the user's bio with get_user_bio
-2. Use this information to understand the user's preferences, goals, schedule patterns, and interests
-3. Continuously update the bio as you learn new information about the user
-4. Base your suggestions for schedule items, ideas, and habits on this bio
+1. Always fetch the user's bio with get_user_bio at the start of each conversation
+2. Use this information to proactively suggest relevant schedule items, ideas, habits, and actionable strategies to help the user progress toward their goals, succeed in their endeavors, and enhance their overall well-being
+3. Continuously update the bio as you learn new information about the user's long-term and short-term goals, motivations, challenges, and personal preferences
+4. Base your suggestions and actions on this bio without explaining that you're doing so
 5. When updating the bio, include key information like:
-   - User's goals and priorities
-   - Preferred schedules, routines and working hours
-   - Interests, hobbies, and activities
-   - Important recurring events
-   - Constraints and preferences (e.g., prefers morning workouts)
-   - Important relationships and commitments
-6. DO NOT ask the user to update their bio. You should automatically update it as you learn new information about the user.
-7. DO NOT inform the user that you are updating their bio. This is internal to the system.
+   - User's long-term and short-term goals and progress
+   - Priorities, motivations, and success criteria
+   - Preferred schedules, routines, and working hours
+   - Interests, hobbies, activities, and areas for personal growth
+   - Important recurring events and commitments
+   - Constraints, preferences, and potential obstacles
+   - Important relationships, support networks, and community connections
+6. Update the bio automatically without mentioning it to the user
+7. Proactively update the bio whenever the user shares any new personal information, goals, preferences, or important context, regardless of specificity.
 
-First, if you need to know about the user's schedule, ideas, or habits, retrieve that data with get_schedule_items, get_ideas, or get_habits.
-If the user wants to create or update items, use the appropriate create or update function calls.
-If the user wants to delete items, use the appropriate delete function calls (delete_schedule_item, delete_idea, delete_habit).
-Be friendly, helpful, and personable in your responses.
-
-When creating schedule items, make sure to include:
+For schedule items, include:
 - title: Name of the event (required)
-- date: Date in YYYY-MM-DD format (required)
 - start_time: Start time in HH:MM or h:MM AM/PM format (required)
 - end_time: End time in same format (if not provided, defaults to 1 hour after start)
 - all_day: true/false for full-day events
-- For recurring events, use recurrence_rule with appropriate RRULE format.
+- For recurring events, use recurrence_rule with appropriate RRULE format:
+  - Daily: "FREQ=DAILY;INTERVAL=1"
+  - Weekly on specific days: "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR"
+  - Monthly: "FREQ=MONTHLY;INTERVAL=1"
+  - Yearly: "FREQ=YEARLY;INTERVAL=1"
+  - The interval value indicates how often (1=every, 2=every other, etc.)
+  - BYDAY can include: MO, TU, WE, TH, FR, SA, SU
 
-For recurring events, use the recurrence_rule field with iCal RRULE format:
-- Daily: "FREQ=DAILY;INTERVAL=1"
-- Weekly on specific days: "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR"
-- Monthly: "FREQ=MONTHLY;INTERVAL=1"
-- Yearly: "FREQ=YEARLY;INTERVAL=1"
-
-The interval value indicates how often the event repeats (1=every, 2=every other, etc.)
-The BYDAY parameter can include: MO, TU, WE, TH, FR, SA, SU
-
-CRITICAL: When deleting items, always use the specific delete functions (delete_schedule_item, delete_idea, delete_habit) rather than trying to update them to a deleted state. This ensures proper tracking and UI updates.`
+CRITICAL: When deleting items, always use the specific delete functions (delete_schedule_item, delete_idea, delete_habit) rather than trying to update them to a deleted state.`
     };
     // Convert chat history to ChatGPT format
     const messages = [
@@ -111,7 +135,7 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
       }
     ];
     // Implementation of ReAct loop
-    const maxIterations = 5; // Increased for data retrieval
+    const maxIterations = 7; // Increased to allow for more proactive actions
     let iterations = 0;
     let shouldContinue = true;
     let thoughts = '';
@@ -119,10 +143,17 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
       // Call OpenAI with the current messages and function definitions
       const response = await openai.chat.completions.create({
         model: 'gpt-4-turbo',
-        messages,
+        messages: [
+          ...messages,
+          // Add a reminder to analyze data before making changes
+          ...(iterations === 0 ? [{
+            role: 'system',
+            content: 'Remember to fetch and analyze ALL relevant user data BEFORE making any changes. Always check for conflicts in schedule, contradictory habits, or redundant ideas.'
+          }] : [])
+        ],
         functions: functionDefinitions,
         function_call: 'auto',
-        temperature: 0.7
+        temperature: 0.8 // Slightly increased for more personality
       });
       const responseChoice = response.choices[0];
       const responseMessage = responseChoice.message;
@@ -149,6 +180,12 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
               count: scheduleItems.length
             })
           });
+          
+          // Add a system message to remind about conflict checking
+          messages.push({
+            role: 'system',
+            content: 'Based on these schedule items, PROACTIVELY suggest optimizations, additions, or changes. Don\'t wait for the user to ask. Identify patterns and opportunities to improve their schedule. Make specific, confident suggestions rather than asking what they want.'
+          });
         } else if (functionName === 'get_ideas') {
           // Fetch ideas from the database
           ideas = await DatabaseService.getIdeas(supabase, userId);
@@ -160,6 +197,12 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
               ideas: ideas,
               count: ideas.length
             })
+          });
+          
+          // Add system message for idea analysis
+          messages.push({
+            role: 'system',
+            content: 'Review these ideas carefully. Look for patterns, connections, and redundancies before suggesting or creating new ideas. Consider how they align with the user\'s goals from their bio.'
           });
         } else if (functionName === 'get_habits') {
           // Fetch habits from the database
@@ -173,6 +216,12 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
               count: habits.length
             })
           });
+          
+          // Add system message for habit analysis
+          messages.push({
+            role: 'system',
+            content: 'Analyze these habits carefully. Before creating new habits, check for potential conflicts or contradictions with existing ones. Consider how they fit into the user\'s schedule and overall goals.'
+          });
         } else if (functionName === 'get_user_bio') {
           const userBioResult = await DatabaseService.getUserBio(supabase, userId);
           messages.push({
@@ -185,6 +234,12 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           });
           // Store the user bio in the variable for later reference
           userBio = userBioResult || '';
+          
+          // Add system message for bio analysis
+          messages.push({
+            role: 'system',
+            content: 'Use this bio, including the user\'s goals, motivations, progress, and personal context, as your foundation for all recommendations. Pay attention to the user\'s preferences, patterns, challenges, and constraints, and ensure every suggestion advances their goals and improves their overall success.'
+          });
         } else if (functionName === 'update_user_bio') {
           const updatedBio = await DatabaseService.updateUserBio(supabase, userId, functionArgs.bio);
           messages.push({
@@ -198,6 +253,19 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           // Update the bioUpdate variable to include it in the response
           bioUpdate = functionArgs.bio;
         } else if (functionName === 'create_schedule_item') {
+          // Validate required fields
+          if (!functionArgs.start_time || !functionArgs.end_time) {
+            messages.push({
+              role: 'function',
+              name: functionName,
+              content: JSON.stringify({
+                success: false,
+                error: 'Start time and end time are required fields'
+              })
+            });
+            continue;
+          }
+
           const newItem = {
             ...functionArgs,
             user_id: userId,
@@ -215,6 +283,19 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
             })
           });
         } else if (functionName === 'update_schedule_item') {
+          // Validate required fields
+          if (!functionArgs.start_time || !functionArgs.end_time) {
+            messages.push({
+              role: 'function',
+              name: functionName,
+              content: JSON.stringify({
+                success: false,
+                error: 'Start time and end time are required fields'
+              })
+            });
+            continue;
+          }
+
           const updateItem = {
             ...functionArgs,
             user_id: userId,
@@ -352,10 +433,10 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           ...messages,
           {
             role: 'system',
-            content: 'Now provide a final conversational response to the user that summarizes any actions you took and answers their query naturally.'
+            content: 'Now provide a final response to the user that is brief, upbeat, and action-oriented. Be conversational and fun while summarizing what you did to help them.'
           }
         ],
-        temperature: 0.7
+        temperature: 0.9
       });
       finalResponseMessage = finalResponse.choices[0].message.content || '';
     }

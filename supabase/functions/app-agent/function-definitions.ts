@@ -117,8 +117,8 @@ export const functionDefinitions = [
       },
       required: [
         'title',
-        'date',
-        'start_time'
+        'start_time',
+        'end_time'
       ]
     }
   },
@@ -190,7 +190,9 @@ export const functionDefinitions = [
         }
       },
       required: [
-        'id'
+        'id',
+        'start_time',
+        'end_time'
       ]
     }
   },
