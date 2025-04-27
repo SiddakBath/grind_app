@@ -14,6 +14,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
@@ -86,25 +92,28 @@ export function Header() {
           
           <ThemeToggle />
           
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={handleSignOut}
-            disabled={isLoading}
-            aria-label="Sign out"
-            className="hidden md:flex"
-          >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <LogOut className="h-5 w-5" />
-            )}
-          </Button>
-
           <div className="hidden md:flex pl-2">
-            <Avatar className="h-10 w-10 border border-border">
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Avatar className="h-10 w-10 border border-border cursor-pointer">
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  disabled={isLoading}
+                  className="cursor-pointer"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4 mr-2" />
+                  )}
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Mobile Menu */}
