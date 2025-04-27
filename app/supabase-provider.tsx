@@ -8,7 +8,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export const EVENTS = {
   SCHEDULE_UPDATED: 'schedule-updated',
   IDEAS_UPDATED: 'ideas-updated',
-  HABITS_UPDATED: 'habits-updated'
+  GOALS_UPDATED: 'goals-updated'
 };
 
 interface SupabaseContext {
@@ -73,16 +73,16 @@ export default function SupabaseProvider({
       })
       .subscribe();
       
-    const habitsChannel = supabase
-      .channel('habits-changes')
+    const goalsChannel = supabase
+      .channel('goals-changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'habits',
+        table: 'goals',
         filter: `user_id=eq.${session.user.id}`,
       }, () => {
         // Dispatch event to notify components of changes
-        const event = new CustomEvent(EVENTS.HABITS_UPDATED);
+        const event = new CustomEvent(EVENTS.GOALS_UPDATED);
         window.dispatchEvent(event);
       })
       .subscribe();
@@ -91,7 +91,7 @@ export default function SupabaseProvider({
     return () => {
       scheduleChannel.unsubscribe();
       ideasChannel.unsubscribe();
-      habitsChannel.unsubscribe();
+      goalsChannel.unsubscribe();
     };
   }, [supabase, session]);
 

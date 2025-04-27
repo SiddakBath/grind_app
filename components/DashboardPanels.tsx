@@ -3,15 +3,15 @@
 import { useState, useEffect } from 'react';
 import { SchedulePanel } from '@/components/panels/SchedulePanel';
 import { IdeasPanel } from '@/components/panels/IdeasPanel';
-import { HabitsPanel } from '@/components/panels/HabitsPanel';
+import { GoalsPanel } from '@/components/panels/GoalsPanel';
 
 type CategoryData = {
   scheduleUpdates: any[];
   ideasUpdates: any[];
-  habitsUpdates: any[];
+  goalsUpdates: any[];
 };
 
-type PanelType = 'schedule' | 'ideas' | 'habits' | null;
+type PanelType = 'schedule' | 'ideas' | 'goals' | null;
 
 export function DashboardPanels() {
   const [activeQuery, setActiveQuery] = useState('');
@@ -19,7 +19,7 @@ export function DashboardPanels() {
   const [categoryData, setCategoryData] = useState<CategoryData>({
     scheduleUpdates: [],
     ideasUpdates: [],
-    habitsUpdates: []
+    goalsUpdates: []
   });
   
   useEffect(() => {
@@ -30,7 +30,7 @@ export function DashboardPanels() {
       setCategoryData({
         scheduleUpdates: event.detail.scheduleUpdates || [],
         ideasUpdates: event.detail.ideasUpdates || [],
-        habitsUpdates: event.detail.habitsUpdates || []
+        goalsUpdates: event.detail.goalsUpdates || []
       });
     };
 
@@ -67,11 +67,11 @@ export function DashboardPanels() {
             isExpanded={true}
           />
         )}
-        {expandedPanel === 'habits' && (
-          <HabitsPanel 
+        {expandedPanel === 'goals' && (
+          <GoalsPanel 
             activeQuery={activeQuery} 
-            updates={categoryData.habitsUpdates}
-            onExpandToggle={(isExpanded) => handlePanelExpand('habits', isExpanded)}
+            updates={categoryData.goalsUpdates}
+            onExpandToggle={(isExpanded) => handlePanelExpand('goals', isExpanded)}
             isExpanded={true}
           />
         )}
@@ -98,10 +98,10 @@ export function DashboardPanels() {
         />
       </div>
       <div className={`${panelClasses} border border-green-300/50 dark:border-green-500/50 shadow-green-300/70 hover:shadow-green-400/80 w-full`}>
-        <HabitsPanel 
+        <GoalsPanel 
           activeQuery={activeQuery} 
-          updates={categoryData.habitsUpdates}
-          onExpandToggle={(isExpanded) => handlePanelExpand('habits', isExpanded)}
+          updates={categoryData.goalsUpdates}
+          onExpandToggle={(isExpanded) => handlePanelExpand('goals', isExpanded)}
           isExpanded={false}
         />
       </div>

@@ -13,7 +13,7 @@ export interface AgentResponse {
   message: string;
   scheduleUpdates: ScheduleUpdate[];
   ideasUpdates: IdeaUpdate[];
-  habitsUpdates: HabitUpdate[];
+  goalsUpdates: GoalUpdate[];
   bioUpdate?: string;
   thoughts?: string;
   sessionId: string;
@@ -48,6 +48,7 @@ export interface ScheduleUpdate {
   end_time?: string;  // Time in 24-hour format (HH:mm)
   all_day?: boolean;  // Whether it's an all-day event
   recurrence_rule?: string;  // iCal RRULE string
+  type: 'task' | 'event';  // Distinguish between tasks and events
 }
 
 export interface IdeaUpdate {
@@ -56,15 +57,14 @@ export interface IdeaUpdate {
   content: string;
 }
 
-export interface HabitUpdate {
+export interface GoalUpdate {
   id?: string;
   user_id?: string;
   title: string;
   description?: string;
-  frequency?: string;
-  type?: string;
-  target_days?: string[];
-  streak?: number;
+  target_date: string;  // ISO date string (YYYY-MM-DD)
+  progress?: number;  // 0-100 percentage
+  category?: string;
 }
 
 // AI Service for communicating with the edge function
@@ -143,12 +143,12 @@ export const AIService = {
         }
       }
       
-      if (data.habitsUpdates?.length > 0) {
+      if (data.goalsUpdates?.length > 0) {
         try {
-          // Apply habit updates to database
-          await DatabaseService.saveHabits(data.habitsUpdates);
+          // Apply goal updates to database
+          await DatabaseService.saveGoals(data.goalsUpdates);
         } catch (error) {
-          console.error('Error saving habit updates:', error);
+          console.error('Error saving goal updates:', error);
         }
       }
       

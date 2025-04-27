@@ -19,8 +19,8 @@ export const functionDefinitions = [
     }
   },
   {
-    name: 'get_habits',
-    description: 'Retrieve the user\'s habits',
+    name: 'get_goals',
+    description: 'Retrieve the user\'s goals',
     parameters: {
       type: 'object',
       properties: {},
@@ -95,24 +95,11 @@ export const functionDefinitions = [
           type: 'string',
           description: 'iCal RRULE string like "FREQ=DAILY;INTERVAL=1"'
         },
-        recurring: {
-          type: 'boolean',
-          description: 'DEPRECATED: Whether this is a recurring event. Use recurrence_rule instead.'
-        },
-        frequency: {
+        type: {
           type: 'string',
-          description: 'DEPRECATED: Frequency for recurring events (daily/weekly/monthly/yearly). Use recurrence_rule instead.'
-        },
-        interval: {
-          type: 'number',
-          description: 'DEPRECATED: Interval for recurring events. Use recurrence_rule instead.'
-        },
-        repeat_days: {
-          type: 'array',
-          items: {
-            type: 'string'
-          },
-          description: 'DEPRECATED: Days of the week for recurring events. Use recurrence_rule instead.'
+          enum: ['task', 'event'],
+          description: 'Whether this is a task or an event',
+          default: 'task'
         }
       },
       required: [
@@ -169,6 +156,11 @@ export const functionDefinitions = [
           type: 'string',
           description: 'iCal RRULE string like "FREQ=DAILY;INTERVAL=1"'
         },
+        type: {
+          type: 'string',
+          enum: ['task', 'event'],
+          description: 'Whether this is a task or an event'
+        }
       },
       required: [
         'id'
@@ -212,49 +204,47 @@ export const functionDefinitions = [
     }
   },
   {
-    name: 'create_habit',
-    description: 'Create a new habit for the user',
+    name: 'create_goal',
+    description: 'Create a new goal for the user',
     parameters: {
       type: 'object',
       properties: {
         title: {
           type: 'string',
-          description: 'Title of the habit'
+          description: 'Title of the goal'
         },
         description: {
           type: 'string',
-          description: 'Description of the habit'
+          description: 'Description of the goal'
         },
-        frequency: {
+        target_date: {
           type: 'string',
-          description: 'How often the habit should be performed (e.g., "daily", "weekly")'
+          description: 'Target date for achieving the goal in format YYYY-MM-DD'
         },
-        type: {
+        progress: {
+          type: 'integer',
+          description: 'Current progress as a percentage (0-100)'
+        },
+        category: {
           type: 'string',
-          description: 'Type of habit (e.g., "health", "productivity")'
-        },
-        target_days: {
-          type: 'array',
-          items: {
-            type: 'string'
-          },
-          description: 'Days of the week for the habit (e.g., ["Monday", "Wednesday", "Friday"])'
+          description: 'Category of the goal (e.g. "Career", "Health", "Education", "Personal", "Finance")'
         }
       },
       required: [
-        'title'
+        'title',
+        'target_date'
       ]
     }
   },
   {
-    name: 'update_habit',
-    description: 'Update an existing habit',
+    name: 'update_goal',
+    description: 'Update an existing goal',
     parameters: {
       type: 'object',
       properties: {
         id: {
           type: 'string',
-          description: 'ID of the habit to update'
+          description: 'ID of the goal to update'
         },
         title: {
           type: 'string',
@@ -264,24 +254,17 @@ export const functionDefinitions = [
           type: 'string',
           description: 'Updated description'
         },
-        frequency: {
+        target_date: {
           type: 'string',
-          description: 'Updated frequency'
+          description: 'Updated target date in format YYYY-MM-DD'
         },
-        type: {
+        progress: {
+          type: 'integer',
+          description: 'Updated progress percentage (0-100)'
+        },
+        category: {
           type: 'string',
-          description: 'Updated type'
-        },
-        streak: {
-          type: 'number',
-          description: 'Updated streak count'
-        },
-        target_days: {
-          type: 'array',
-          items: {
-            type: 'string'
-          },
-          description: 'Updated days of the week for the habit'
+          description: 'Updated category'
         }
       },
       required: [
@@ -298,6 +281,10 @@ export const functionDefinitions = [
         id: {
           type: 'string',
           description: 'ID of the schedule item to delete'
+        },
+        title: {
+          type: 'string',
+          description: 'Title of the schedule item to delete (for confirmation)'
         }
       },
       required: [
@@ -314,6 +301,10 @@ export const functionDefinitions = [
         id: {
           type: 'string',
           description: 'ID of the idea to delete'
+        },
+        content: {
+          type: 'string',
+          description: 'Content of the idea to delete (for confirmation)'
         }
       },
       required: [
@@ -322,14 +313,18 @@ export const functionDefinitions = [
     }
   },
   {
-    name: 'delete_habit',
-    description: 'Delete a habit',
+    name: 'delete_goal',
+    description: 'Delete a goal',
     parameters: {
       type: 'object',
       properties: {
         id: {
           type: 'string',
-          description: 'ID of the habit to delete'
+          description: 'ID of the goal to delete'
+        },
+        title: {
+          type: 'string',
+          description: 'Title of the goal to delete (for confirmation)'
         }
       },
       required: [

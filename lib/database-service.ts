@@ -1,8 +1,8 @@
 'use client';
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import type { ScheduleItem, Idea } from '@/lib/supabase';
-import { ScheduleUpdate, IdeaUpdate, HabitUpdate } from '@/lib/ai-service';
+import type { ScheduleItem, Idea, Goal } from '@/lib/supabase';
+import { ScheduleUpdate, IdeaUpdate, GoalUpdate } from '@/lib/ai-service';
 
 /**
  * Database service for handling CRUD operations with Supabase
@@ -43,7 +43,8 @@ export const DatabaseService = {
           all_day: update.all_day || false,
           priority: update.priority,
           description: update.description,
-          recurrence_rule: update.recurrence_rule
+          recurrence_rule: update.recurrence_rule,
+          type: update.type || 'task'  // Ensure type is set
         });
       }
     } catch (error) {
@@ -79,9 +80,9 @@ export const DatabaseService = {
   },
   
   /**
-   * Save habit updates to database
+   * Save goal updates to database
    */
-  async saveHabits(updates: HabitUpdate[]): Promise<void> {
+  async saveGoals(updates: GoalUpdate[]): Promise<void> {
     const supabase = createClientComponentClient();
     
     // Get current user
@@ -91,21 +92,20 @@ export const DatabaseService = {
     }
     
     try {
-      // Insert each habit into the habits table
+      // Insert each goal into the goals table
       for (const update of updates) {
-        await supabase.from('habits').insert({
+        await supabase.from('goals').insert({
           user_id: user.id,
           title: update.title,
-          frequency: update.frequency || 'Daily',
-          type: update.type || 'daily',
           description: update.description,
-          target_days: update.target_days,
-          streak: update.streak || 0
+          target_date: update.target_date,
+          progress: update.progress || 0,
+          category: update.category || 'Personal'
         });
       }
     } catch (error) {
-      console.error('Error saving habits:', error);
-      throw new Error('Failed to save habits');
+      console.error('Error saving goals:', error);
+      throw new Error('Failed to save goals');
     }
   },
   
@@ -132,6 +132,7 @@ export const DatabaseService = {
         priority: item.priority,
         all_day: item.all_day,
         recurrence_rule: item.recurrence_rule,
+        type: item.type || 'task',  // Ensure type is set
         user_id: item.user_id,
         created_at: item.created_at,
         updated_at: item.updated_at
@@ -170,9 +171,9 @@ export const DatabaseService = {
   },
   
   /**
-   * Get habits for the current user
+   * Get goals for the current user
    */
-  async getHabits(): Promise<any[]> {
+  async getGoals(): Promise<Goal[]> {
     const supabase = createClientComponentClient();
     
     // Get current user
@@ -183,16 +184,16 @@ export const DatabaseService = {
     
     try {
       const { data, error } = await supabase
-        .from('habits')
+        .from('goals')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('target_date', { ascending: true });
       
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Error fetching habits:', error);
-      throw new Error('Failed to fetch habits');
+      console.error('Error fetching goals:', error);
+      throw new Error('Failed to fetch goals');
     }
   },
 
@@ -223,9 +224,9 @@ export const DatabaseService = {
   },
   
   /**
-   * Delete a habit for the current user
+   * Delete a goal for the current user
    */
-  async deleteHabit(id: string): Promise<void> {
+  async deleteGoal(id: string): Promise<void> {
     const supabase = createClientComponentClient();
     
     // Get current user
@@ -236,15 +237,15 @@ export const DatabaseService = {
     
     try {
       const { error } = await supabase
-        .from('habits')
+        .from('goals')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
         
       if (error) throw error;
     } catch (error) {
-      console.error('Error deleting habit:', error);
-      throw new Error('Failed to delete habit');
+      console.error('Error deleting goal:', error);
+      throw new Error('Failed to delete goal');
     }
   },
   

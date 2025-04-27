@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, Clock, CalendarClock, ChevronLeft, ChevronRight, Maximize2, Plus, Edit, Trash2 } from 'lucide-react';
+import { Calendar, Clock, CalendarClock, ChevronLeft, ChevronRight, Maximize2, Plus, Edit, Trash2, CheckSquare } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ interface ScheduleItem {
   end_time: string;    // ISO format timestamp
   all_day: boolean;
   recurrence_rule?: string | null;  // iCal format
+  type: 'task' | 'event';  // Distinguish between tasks and events
 }
 
 // Define a UI-specific interface instead of extending the ScheduleUpdate
@@ -41,6 +42,7 @@ interface UIScheduleUpdate {
   end_time?: string;
   all_day?: boolean;
   recurrence_rule?: string;
+  type: 'task' | 'event';
 }
 
 // Transform database items to UI format
@@ -53,7 +55,8 @@ function transformDbItemToUi(item: SupabaseScheduleItem): ScheduleItem {
     all_day: item.all_day,
     description: item.description,
     priority: item.priority,
-    recurrence_rule: item.recurrence_rule
+    recurrence_rule: item.recurrence_rule,
+    type: item.type
   };
 }
 
@@ -66,7 +69,8 @@ function transformUiItemToDb(item: Partial<UIScheduleUpdate>): ScheduleUpdate {
     end_time: item.end_time,
     all_day: item.all_day,
     priority: item.priority,
-    recurrence_rule: item.recurrence_rule
+    recurrence_rule: item.recurrence_rule,
+    type: item.type || 'task'  // Ensure type is always set
   };
 }
 
@@ -121,14 +125,15 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
-  const [showAddTaskDialog, setShowAddTaskDialog] = useState(false);
-  const [newTask, setNewTask] = useState<Partial<UIScheduleUpdate>>({
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newItem, setNewItem] = useState<Partial<UIScheduleUpdate>>({
     title: '',
     description: '',
     start_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     end_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     priority: 'medium',
-    all_day: false
+    all_day: false,
+    type: 'task'
   });
   const { toast } = useToast();
   
@@ -188,7 +193,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
           description: update.description,
           priority: update.priority as 'high' | 'medium' | 'low' || 'medium',
           all_day: update.all_day || false,
-          recurrence_rule: update.recurrence_rule
+          recurrence_rule: update.recurrence_rule,
+          type: update.type || 'task'
         };
       });
       
@@ -268,32 +274,39 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
     }
   };
   
-  // Group items by time when displaying for the day
-  const groupItemsByTime = (items: ScheduleItem[]) => {
-    const groups: Record<string, ScheduleItem[]> = {};
+  // Group items by type and time
+  const groupItemsByTypeAndTime = (items: ScheduleItem[]) => {
+    const groups: Record<string, Record<string, ScheduleItem[]>> = {
+      task: {},
+      event: {}
+    };
     
-    // First group all-day events
-    const allDayEvents = items.filter(item => item.all_day);
+    // First group all-day items
+    const allDayTasks = items.filter(item => item.all_day && item.type === 'task');
+    const allDayEvents = items.filter(item => item.all_day && item.type === 'event');
+    
+    if (allDayTasks.length > 0) {
+      groups.task['All Day'] = allDayTasks;
+    }
     if (allDayEvents.length > 0) {
-      groups['All Day'] = allDayEvents;
+      groups.event['All Day'] = allDayEvents;
     }
     
-    // Then group timed events
+    // Then group timed items
     items.filter(item => !item.all_day).forEach(item => {
-      // Use formatted start_time for grouping
       const timeKey = formatTimeForDisplay(item.start_time).split(' ')[0];
-      if (!groups[timeKey]) {
-        groups[timeKey] = [];
+      if (!groups[item.type][timeKey]) {
+        groups[item.type][timeKey] = [];
       }
-      groups[timeKey].push(item);
+      groups[item.type][timeKey].push(item);
     });
     
     return groups;
   };
 
   // Handle new task creation
-  const handleAddTask = async () => {
-    if (!newTask.title || !newTask.start_time) {
+  const handleAddItem = async () => {
+    if (!newItem.title || !newItem.start_time) {
       toast({
         title: "Error",
         description: "Please provide a title and start time for the task",
@@ -306,7 +319,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
       setIsUpdating(true);
       
       // Transform to database format and save
-      const taskToAdd = transformUiItemToDb(newTask);
+      const taskToAdd = transformUiItemToDb(newItem);
       
       // Save to database
       await DatabaseService.saveScheduleItems([taskToAdd]);
@@ -314,28 +327,30 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
       // Update UI immediately for better UX
       const newItemToAdd: ScheduleItem = {
         id: Date.now().toString(),
-        title: newTask.title!, // Use non-null assertion since we validate above
-        start_time: newTask.start_time!,
-        end_time: newTask.end_time || format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        description: newTask.description,
-        priority: newTask.priority as 'high' | 'medium' | 'low' || 'medium',
-        all_day: newTask.all_day || false,
-        recurrence_rule: taskToAdd.recurrence_rule
+        title: newItem.title!, // Use non-null assertion since we validate above
+        start_time: newItem.start_time!,
+        end_time: newItem.end_time || format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        description: newItem.description,
+        priority: newItem.priority as 'high' | 'medium' | 'low' || 'medium',
+        all_day: newItem.all_day || false,
+        recurrence_rule: taskToAdd.recurrence_rule,
+        type: newItem.type || 'task'
       };
       
       setScheduleItems(prev => [...prev, newItemToAdd]);
       
       // Reset the form
-      setNewTask({
+      setNewItem({
         title: '',
         description: '',
         start_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         end_time: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         priority: 'medium',
-        all_day: false
+        all_day: false,
+        type: 'task'
       });
       
-      setShowAddTaskDialog(false);
+      setShowAddDialog(false);
       
       toast({
         title: "Task Added",
@@ -354,7 +369,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
   };
   
   // Handle task deletion
-  const handleDeleteTask = async (taskId: string) => {
+  const handleDeleteItem = async (taskId: string) => {
     try {
       await DatabaseService.deleteScheduleItem(taskId);
       setScheduleItems(prev => prev.filter(item => item.id !== taskId));
@@ -392,15 +407,176 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
             <span>Schedule</span>
           </CardTitle>
           
-          <Button variant="outline" size="sm" onClick={toggleExpandedView} className="ml-auto">
-            <Maximize2 className="h-3 w-3" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogTrigger asChild>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-40 p-2">
+                    <div className="flex flex-col gap-2">
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start" 
+                        onClick={() => {
+                          setNewItem(prev => ({ ...prev, type: 'task' }));
+                          setShowAddDialog(true);
+                        }}
+                      >
+                        <CheckSquare className="h-4 w-4 mr-2" />
+                        Task
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setNewItem(prev => ({ ...prev, type: 'event' }));
+                          setShowAddDialog(true);
+                        }}
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Event
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Add New {newItem.type === 'task' ? 'Task' : 'Event'}</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="title" className="text-right">Title</label>
+                    <Input 
+                      id="title" 
+                      value={newItem.title} 
+                      onChange={(e) => setNewItem({...newItem, title: e.target.value})}
+                      className="col-span-3"
+                      placeholder={newItem.type === 'task' ? "Enter task title..." : "Enter event title..."}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="description" className="text-right">Description</label>
+                    <Input 
+                      id="description" 
+                      value={newItem.description || ''} 
+                      onChange={(e) => setNewItem({...newItem, description: e.target.value})}
+                      className="col-span-3"
+                      placeholder={newItem.type === 'task' ? "Task description..." : "Event description..."}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="start_time" className="text-right">Start</label>
+                    <Input 
+                      id="start_time" 
+                      type="datetime-local" 
+                      value={newItem.start_time} 
+                      onChange={(e) => setNewItem({...newItem, start_time: e.target.value})}
+                      className="col-span-3"
+                      disabled={newItem.all_day}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="end_time" className="text-right">End</label>
+                    <Input 
+                      id="end_time" 
+                      type="datetime-local" 
+                      value={newItem.end_time} 
+                      onChange={(e) => setNewItem({...newItem, end_time: e.target.value})}
+                      className="col-span-3"
+                      disabled={newItem.all_day}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="all_day" className="text-right">All Day</label>
+                    <div className="col-span-3 flex items-center">
+                      <Checkbox
+                        id="all_day"
+                        checked={newItem.all_day}
+                        onCheckedChange={(checked) => 
+                          setNewItem({...newItem, all_day: checked === true})
+                        }
+                        className="mr-2"
+                      />
+                      <label htmlFor="all_day" className="text-sm">
+                        This is an all-day {newItem.type}
+                      </label>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="priority" className="text-right">Priority</label>
+                    <Select 
+                      value={newItem.priority?.toString() || 'medium'} 
+                      onValueChange={(value) => setNewItem({
+                        ...newItem, 
+                        priority: value as 'high' | 'medium' | 'low'
+                      })}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="recurring" className="text-right">Recurrence</label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={newItem.recurrence_rule || 'none'} 
+                        onValueChange={(value) => {
+                          if (value === 'none') {
+                            setNewItem({
+                              ...newItem, 
+                              recurrence_rule: undefined
+                            });
+                          } else {
+                            let recurrenceRule = `FREQ=${value.toUpperCase()};INTERVAL=1`;
+                            setNewItem({
+                              ...newItem, 
+                              recurrence_rule: recurrenceRule
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select recurrence pattern" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowAddDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddItem}>Add {newItem.type === 'task' ? 'Task' : 'Event'}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button variant="outline" size="sm" onClick={toggleExpandedView}>
+              <Maximize2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
         
-        <div className={cn(
-          "flex items-center gap-2",
-          isExpanded ? "justify-center" : "justify-between"
-        )}>
+        <div className="flex items-center justify-center gap-2">
           <Button variant="outline" size="sm" onClick={viewMode === 'day' ? goToPrevDay : goToPrevWeek}>
             <ChevronLeft className="h-3 w-3" />
           </Button>
@@ -423,141 +599,6 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
               </span>
             </Button>
           )}
-          
-          <div className={isExpanded ? "ml-4" : "ml-auto"}>
-            <Dialog open={showAddTaskDialog} onOpenChange={setShowAddTaskDialog}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Add New Task</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="title" className="text-right">Title</label>
-                    <Input 
-                      id="title" 
-                      value={newTask.title} 
-                      onChange={(e) => setNewTask({...newTask, title: e.target.value})}
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="description" className="text-right">Description</label>
-                    <Input 
-                      id="description" 
-                      value={newTask.description || ''} 
-                      onChange={(e) => setNewTask({...newTask, description: e.target.value})}
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="start_time" className="text-right">Start</label>
-                    <Input 
-                      id="start_time" 
-                      type="datetime-local" 
-                      value={newTask.start_time} 
-                      onChange={(e) => setNewTask({...newTask, start_time: e.target.value})}
-                      className="col-span-3"
-                      disabled={newTask.all_day}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="end_time" className="text-right">End</label>
-                    <Input 
-                      id="end_time" 
-                      type="datetime-local" 
-                      value={newTask.end_time} 
-                      onChange={(e) => setNewTask({...newTask, end_time: e.target.value})}
-                      className="col-span-3"
-                      disabled={newTask.all_day}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="all_day" className="text-right">All Day</label>
-                    <div className="col-span-3 flex items-center">
-                      <Checkbox
-                        id="all_day"
-                        checked={newTask.all_day}
-                        onCheckedChange={(checked) => 
-                          setNewTask({...newTask, all_day: checked === true})
-                        }
-                        className="mr-2"
-                      />
-                      <label htmlFor="all_day" className="text-sm">
-                        This is an all-day event
-                      </label>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="priority" className="text-right">Priority</label>
-                    <Select 
-                      value={newTask.priority?.toString() || 'medium'} 
-                      onValueChange={(value) => setNewTask({
-                        ...newTask, 
-                        priority: value as 'high' | 'medium' | 'low'
-                      })}
-                    >
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="recurring" className="text-right">Recurrence</label>
-                    <div className="col-span-3">
-                      <Select 
-                        value={newTask.recurrence_rule || 'none'} 
-                        onValueChange={(value) => {
-                          if (value === 'none') {
-                            setNewTask({
-                              ...newTask, 
-                              recurrence_rule: undefined
-                            });
-                          } else {
-                            // Convert to RRULE format
-                            let recurrenceRule = `FREQ=${value.toUpperCase()};INTERVAL=1`;
-                            
-                            setNewTask({
-                              ...newTask, 
-                              recurrence_rule: recurrenceRule
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select recurrence pattern" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          <SelectItem value="daily">Daily</SelectItem>
-                          <SelectItem value="weekly">Weekly</SelectItem>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowAddTaskDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddTask}>Add Task</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
         </div>
       </CardHeader>
       <CardContent className={cn(
@@ -567,92 +608,159 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
         {viewMode === 'day' ? (
           <div className={isExpanded ? "max-w-4xl mx-auto h-full" : "h-full"}>
             {getItemsForDate(currentDate).length > 0 ? (
-              <div className="space-y-6">
-                {Object.entries(groupItemsByTime(getItemsForDate(currentDate))).map(([time, items]) => (
-                  <div key={time} className={cn("mb-6", isExpanded && "mb-8")}>
-                    <div className="flex items-center mb-3">
-                      {time === 'All Day' ? (
-                        <Calendar className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Clock className="mr-2 h-4 w-4" />
-                      )}
-                      <span className="text-sm font-medium">{time}</span>
-                    </div>
-                    <div className={cn(
-                      "flex flex-wrap gap-3",
-                      isExpanded && "gap-4"
-                    )}>
-                      {items.map((item) => (
-                        <div 
-                          key={item.id}
-                          className={cn(
-                            "flex-1 flex items-start gap-3 p-4 rounded-lg transition-all group",
-                            "hover:bg-muted/50 border border-border/50",
-                            isExpanded && "p-5",
-                            item.id === scheduleItems[scheduleItems.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
+              <div className="space-y-8">
+                {/* Tasks Section */}
+                {Object.entries(groupItemsByTypeAndTime(getItemsForDate(currentDate)).task).length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <CheckSquare className="h-4 w-4" />
+                      Tasks
+                    </h3>
+                    {Object.entries(groupItemsByTypeAndTime(getItemsForDate(currentDate)).task).map(([time, items]) => (
+                      <div key={time} className={cn("mb-4", isExpanded && "mb-6")}>
+                        <div className="flex items-center mb-2">
+                          {time === 'All Day' ? (
+                            <Calendar className="mr-2 h-4 w-4" />
+                          ) : (
+                            <Clock className="mr-2 h-4 w-4" />
                           )}
-                          style={{
-                            minHeight: item.all_day ? '80px' : `${Math.max(80, calculateDuration(item.start_time, item.end_time) / 15 * 20)}px`,
-                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.75rem)') : '100%',
-                            maxHeight: items.length === 1 ? 'auto' : 'none'
-                          }}
-                        >
-                          <div className={cn(
-                            "mt-1 h-3 w-3 rounded-full",
-                            item.priority === 'high' && "bg-destructive",
-                            item.priority === 'medium' && "bg-orange-500",
-                            item.priority === 'low' && "bg-green-500"
-                          )} />
-                          <div className="flex-1 space-y-2">
-                            <p className="font-medium leading-none">{item.title}</p>
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              {item.all_day ? (
-                                <span>[All Day]</span>
-                              ) : (
-                                <>
-                                  <Clock className="mr-1 h-3 w-3" />
-                                  <span>
-                                    {formatTimeForDisplay(item.start_time)} - {formatTimeForDisplay(item.end_time)} ({calculateDuration(item.start_time, item.end_time)} min)
-                                  </span>
-                                </>
-                              )}
-                              {item.recurrence_rule && (
-                                <Badge className="ml-2" variant="outline">
-                                  {item.recurrence_rule.split(';')[0].split('=')[1]}
-                                </Badge>
-                              )}
-                            </div>
-                            {item.description && (
-                              <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                            )}
-                          </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTask(item.id);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                          </Button>
+                          <span className="text-sm font-medium">{time}</span>
                         </div>
-                      ))}
-                    </div>
+                        <div className={cn(
+                          "grid gap-2",
+                          isExpanded ? "grid-cols-2" : "grid-cols-1"
+                        )}>
+                          {items.map((item) => (
+                            <div 
+                              key={item.id}
+                              className={cn(
+                                "flex items-start gap-3 p-3 rounded-lg transition-all group",
+                                "hover:bg-muted/50 border border-border/50",
+                                item.id === scheduleItems[scheduleItems.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
+                              )}
+                            >
+                              <div className={cn(
+                                "mt-1 h-3 w-3 rounded-full",
+                                item.priority === 'high' && "bg-destructive",
+                                item.priority === 'medium' && "bg-orange-500",
+                                item.priority === 'low' && "bg-green-500"
+                              )} />
+                              <div className="flex-1">
+                                <p className="font-medium">{item.title}</p>
+                                {!item.all_day && (
+                                  <div className="text-sm text-muted-foreground flex items-center mt-1">
+                                    <Clock className="mr-1 h-3 w-3" />
+                                    <span>
+                                      {formatTimeForDisplay(item.start_time)} - {formatTimeForDisplay(item.end_time)}
+                                    </span>
+                                  </div>
+                                )}
+                                {item.description && (
+                                  <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                                )}
+                                {item.recurrence_rule && (
+                                  <Badge variant="outline" className="mt-2">
+                                    {item.recurrence_rule.split(';')[0].split('=')[1].toLowerCase()}
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleDeleteItem(item.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                {/* Events Section */}
+                {Object.entries(groupItemsByTypeAndTime(getItemsForDate(currentDate)).event).length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Events
+                    </h3>
+                    {Object.entries(groupItemsByTypeAndTime(getItemsForDate(currentDate)).event).map(([time, items]) => (
+                      <div key={time} className={cn("mb-4", isExpanded && "mb-6")}>
+                        <div className="flex items-center mb-2">
+                          {time === 'All Day' ? (
+                            <Calendar className="mr-2 h-4 w-4" />
+                          ) : (
+                            <Clock className="mr-2 h-4 w-4" />
+                          )}
+                          <span className="text-sm font-medium">{time}</span>
+                        </div>
+                        <div className={cn(
+                          "grid gap-2",
+                          isExpanded ? "grid-cols-2" : "grid-cols-1"
+                        )}>
+                          {items.map((item) => (
+                            <div 
+                              key={item.id}
+                              className={cn(
+                                "flex items-start gap-3 p-3 rounded-lg transition-all group",
+                                "hover:bg-muted/50 border border-border/50",
+                                item.id === scheduleItems[scheduleItems.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
+                              )}
+                            >
+                              <div className={cn(
+                                "mt-1 h-3 w-3 rounded-full",
+                                item.priority === 'high' && "bg-destructive",
+                                item.priority === 'medium' && "bg-orange-500",
+                                item.priority === 'low' && "bg-green-500"
+                              )} />
+                              <div className="flex-1">
+                                <p className="font-medium">{item.title}</p>
+                                {!item.all_day && (
+                                  <div className="text-sm text-muted-foreground flex items-center mt-1">
+                                    <Clock className="mr-1 h-3 w-3" />
+                                    <span>
+                                      {formatTimeForDisplay(item.start_time)} - {formatTimeForDisplay(item.end_time)}
+                                    </span>
+                                  </div>
+                                )}
+                                {item.description && (
+                                  <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                                )}
+                                {item.recurrence_rule && (
+                                  <Badge variant="outline" className="mt-2">
+                                    {item.recurrence_rule.split(';')[0].split('=')[1].toLowerCase()}
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleDeleteItem(item.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center py-12">
                 <div className="rounded-full bg-primary/10 p-4 mb-4">
                   <CalendarClock className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-medium mb-2">No events for {format(currentDate, 'MMMM d')}</h3>
+                <h3 className="text-xl font-medium mb-2">No items for {format(currentDate, 'MMMM d')}</h3>
                 <p className="text-sm text-muted-foreground max-w-xs">
                   {isToday(currentDate) 
-                    ? "Your schedule is clear for today. Add some tasks or tell the AI about your events."
-                    : `Your schedule is clear for ${format(currentDate, 'MMMM d')}. Add some tasks or tell the AI about your events.`
+                    ? "Your schedule is clear for today. Add some tasks or events."
+                    : `Your schedule is clear for ${format(currentDate, 'MMMM d')}. Add some tasks or events.`
                   }
                 </p>
               </div>
@@ -711,7 +819,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                             className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-0 h-4 w-4 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteTask(item.id);
+                              handleDeleteItem(item.id);
                             }}
                           >
                             <Trash2 className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />

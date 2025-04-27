@@ -30,6 +30,7 @@ export type ScheduleItem = {
   end_time: string;    // Timestamp
   all_day: boolean;
   recurrence_rule: string | null;  // iCal RRULE format
+  type: 'task' | 'event';  // Distinguish between tasks and events
   created_at: string;
   updated_at: string;
   
@@ -52,6 +53,18 @@ export type Resource = {
   title: string;
   url: string;
   type: 'article' | 'document' | 'link';
+  created_at: string;
+  updated_at: string;
+};
+
+export type Goal = {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  target_date: string;  // ISO date string (YYYY-MM-DD)
+  progress?: number;    // 0-100 percentage
+  category?: string;    // Category for organizing goals
   created_at: string;
   updated_at: string;
 };

@@ -24,15 +24,14 @@ interface Idea {
   title?: string;
 }
 
-interface Habit {
+interface Goal {
   id?: string;
   user_id: string;
   title: string;
-  frequency?: string;
-  type?: string;
   description?: string;
-  target_days?: string[];
-  streak?: number;
+  target_date: string;  // ISO date string (YYYY-MM-DD)
+  progress?: number;    // 0-100 percentage
+  category?: string;    // Category for organizing goals
 }
 
 // Database service functions that match the actual schema
@@ -104,12 +103,12 @@ export const DatabaseService = {
     }
     return data || [];
   },
-  async getHabits (supabase: SupabaseClient, userId: string) {
-    const { data, error } = await supabase.from('habits').select('*').eq('user_id', userId).order('created_at', {
-      ascending: false
+  async getGoals (supabase: SupabaseClient, userId: string) {
+    const { data, error } = await supabase.from('goals').select('*').eq('user_id', userId).order('target_date', {
+      ascending: true
     });
     if (error) {
-      console.error('Error fetching habits:', error);
+      console.error('Error fetching goals:', error);
       return [];
     }
     return data || [];
@@ -250,7 +249,6 @@ export const DatabaseService = {
       
       // Only include fields that are provided
       if (idea.content) updateData.content = idea.content;
-      if (idea.title) updateData.title = idea.title;
       
       // Update the idea
       const { data, error } = await supabase.from('ideas').update(updateData).eq('id', idea.id).select('*');
@@ -264,113 +262,136 @@ export const DatabaseService = {
       // Create a new idea
       const { data, error } = await supabase.from('ideas').insert({
         user_id: idea.user_id,
-        content: idea.content,
-        title: idea.title
+        content: idea.content
       }).select('*');
       if (error) {
-        console.error('Error saving idea:', error);
+        console.error('Error creating idea:', error);
         return null;
       }
       return data[0] || null;
     }
   },
-  async saveHabit (supabase: SupabaseClient, habit: Habit) {
+  async saveGoal (supabase: SupabaseClient, goal: Goal) {
     // For updates, we only need the id
-    if (habit.id) {
+    if (goal.id) {
       // This is an update operation
       const updateData: any = {};
       
       // Only include fields that are provided
-      if (habit.title) updateData.title = habit.title;
-      if (habit.description !== undefined) updateData.description = habit.description;
-      if (habit.frequency) updateData.frequency = habit.frequency;
-      if (habit.type) updateData.type = habit.type;
-      if (habit.target_days) updateData.target_days = habit.target_days;
-      if (habit.streak !== undefined) updateData.streak = habit.streak;
+      if (goal.title) updateData.title = goal.title;
+      if (goal.description !== undefined) updateData.description = goal.description;
+      if (goal.target_date) updateData.target_date = goal.target_date;
+      if (goal.progress !== undefined) updateData.progress = goal.progress;
+      if (goal.category) updateData.category = goal.category;
       
-      // Update the habit
-      const { data, error } = await supabase.from('habits').update(updateData).eq('id', habit.id).select('*');
+      // Update the goal
+      const { data, error } = await supabase.from('goals').update(updateData).eq('id', goal.id).select('*');
       if (error) {
-        console.error('Error updating habit:', error);
+        console.error('Error updating goal:', error);
         return null;
       }
       return data[0] || null;
     } else {
       // This is a create operation
-      // Create a new habit
-      const { data, error } = await supabase.from('habits').insert({
-        user_id: habit.user_id,
-        title: habit.title,
-        description: habit.description,
-        frequency: habit.frequency,
-        type: habit.type,
-        target_days: habit.target_days,
-        streak: habit.streak || 0
+      // Validate required fields
+      if (!goal.target_date) {
+        console.error('Target date is required for goals');
+        return null;
+      }
+      
+      // Ensure progress is within bounds
+      const progress = goal.progress !== undefined ? Math.min(Math.max(goal.progress, 0), 100) : 0;
+      
+      // Create a new goal
+      const { data, error } = await supabase.from('goals').insert({
+        user_id: goal.user_id,
+        title: goal.title,
+        description: goal.description,
+        target_date: goal.target_date,
+        progress: progress,
+        category: goal.category || 'Personal'
       }).select('*');
       if (error) {
-        console.error('Error saving habit:', error);
+        console.error('Error creating goal:', error);
         return null;
       }
       return data[0] || null;
     }
   },
   async deleteScheduleItem (supabase: SupabaseClient, itemId: string) {
-    const { error } = await supabase.from('schedule_items').delete().eq('id', itemId);
+    const { data, error } = await supabase.from('schedule_items').delete().eq('id', itemId);
     if (error) {
       console.error('Error deleting schedule item:', error);
-      return false;
+      return null;
     }
-    return true;
+    return { success: true };
   },
   async deleteIdea (supabase: SupabaseClient, ideaId: string) {
-    const { error } = await supabase.from('ideas').delete().eq('id', ideaId);
+    const { data, error } = await supabase.from('ideas').delete().eq('id', ideaId);
     if (error) {
       console.error('Error deleting idea:', error);
-      return false;
+      return null;
     }
-    return true;
+    return { success: true };
   },
-  async deleteHabit (supabase: SupabaseClient, habitId: string) {
-    const { error } = await supabase.from('habits').delete().eq('id', habitId);
+  async deleteGoal (supabase: SupabaseClient, goalId: string) {
+    const { data, error } = await supabase.from('goals').delete().eq('id', goalId);
     if (error) {
-      console.error('Error deleting habit:', error);
-      return false;
+      console.error('Error deleting goal:', error);
+      return null;
     }
-    return true;
+    return { success: true };
   }
 };
 
-// Helper function to parse time string
 function parseTimeString(timeStr: string): [number, number] {
-  let hours = 12;
+  // Handle various time formats
+  let hours = 0;
   let minutes = 0;
-
-  console.log('timeStr', timeStr);
   
+  // Try to parse time from string
   if (timeStr.includes(':')) {
-    // Handle formats like "3:00 PM" or "15:00"
-    let [hourStr, minuteStr] = timeStr.split(':');
+    // Format: "HH:MM" or "h:MM AM/PM"
+    let isPM = false;
+    let is24Hour = true;
     
-    // Extract only numbers from minute string
-    minuteStr = minuteStr.replace(/[^\d]/g, '');
+    if (timeStr.toLowerCase().includes('pm')) {
+      isPM = true;
+      is24Hour = false;
+    } else if (timeStr.toLowerCase().includes('am')) {
+      is24Hour = false;
+    }
     
-    hours = parseInt(hourStr);
-    minutes = parseInt(minuteStr);
+    // Extract hours and minutes
+    const parts = timeStr.split(':');
+    hours = parseInt(parts[0], 10);
     
-    // Handle AM/PM if present
-    const isPM = timeStr.toLowerCase().includes('pm');
-    if (isPM && hours < 12) hours += 12;
-    if (!isPM && hours === 12 && timeStr.toLowerCase().includes('am')) hours = 0;
-  } else if (/^\d+$/.test(timeStr)) {
-    // Handle numeric time like "1500" for 15:00
-    const timeNum = parseInt(timeStr);
-    hours = Math.floor(timeNum / 100);
-    minutes = timeNum % 100;
+    // Handle minutes and AM/PM designation
+    if (parts.length > 1) {
+      const minutesPart = parts[1].replace(/[^0-9]/g, '');
+      minutes = parseInt(minutesPart, 10);
+      
+      // Adjust hours for 12-hour format
+      if (!is24Hour) {
+        if (isPM && hours < 12) {
+          hours += 12;
+        } else if (!isPM && hours === 12) {
+          hours = 0;
+        }
+      }
+    }
+  } else {
+    // Format: Simple integer for hours, like "10" or "14"
+    hours = parseInt(timeStr, 10);
   }
   
-  // Validate hours and minutes
-  if (isNaN(hours) || hours < 0 || hours > 23) hours = 12;
-  if (isNaN(minutes) || minutes < 0 || minutes > 59) minutes = 0;
+  // Default to 0 for invalid values
+  if (isNaN(hours)) hours = 0;
+  if (isNaN(minutes)) minutes = 0;
+  
+  // Clamp values to valid ranges
+  hours = Math.max(0, Math.min(23, hours));
+  minutes = Math.max(0, Math.min(59, minutes));
   
   return [hours, minutes];
 } 

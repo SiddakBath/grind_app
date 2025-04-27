@@ -213,28 +213,28 @@ export default function AgentChat({ className }: AgentChatProps) {
         newMessages.push(ideasMessage);
       }
       
-      if (data.habits) {
-        const habitsMessage: Message = {
+      if (data.goals) {
+        const goalsMessage: Message = {
           id: generateId(),
           role: 'function',
-          name: 'get_habits',
+          name: 'get_goals',
           content: JSON.stringify({ 
             success: true, 
-            habits: data.habits,
-            count: data.habits.length || 0
+            goals: data.goals,
+            count: data.goals.length || 0
           }),
           timestamp: new Date()
         };
-        newMessages.push(habitsMessage);
+        newMessages.push(goalsMessage);
       }
       
       // If we have any function responses, add them to the messages
       if (data.scheduleUpdates?.length > 0 || 
           data.ideasUpdates?.length > 0 || 
-          data.habitsUpdates?.length > 0 ||
+          data.goalsUpdates?.length > 0 ||
           data.scheduleDeletions?.length > 0 ||
           data.ideasDeletions?.length > 0 ||
-          data.habitsDeletions?.length > 0) {
+          data.goalsDeletions?.length > 0) {
         
         // For each type of update, create a function response message
         if (data.scheduleUpdates?.length > 0) {
@@ -273,22 +273,22 @@ export default function AgentChat({ className }: AgentChatProps) {
           window.dispatchEvent(new CustomEvent(EVENTS.IDEAS_UPDATED));
         }
         
-        if (data.habitsUpdates?.length > 0) {
-          const habitsMessage: Message = {
+        if (data.goalsUpdates?.length > 0) {
+          const goalsMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: (data.habitsUpdates[0].id ? 'update_habit' : 'create_habit'),
+            name: (data.goalsUpdates[0].id ? 'update_goal' : 'create_goal'),
             content: JSON.stringify({ 
               success: true, 
-              habits: data.habitsUpdates,
-              count: data.habitsUpdates.length
+              goals: data.goalsUpdates,
+              count: data.goalsUpdates.length
             }),
             timestamp: new Date()
           };
-          newMessages.push(habitsMessage);
+          newMessages.push(goalsMessage);
           
           // Dispatch real-time update event
-          window.dispatchEvent(new CustomEvent(EVENTS.HABITS_UPDATED));
+          window.dispatchEvent(new CustomEvent(EVENTS.GOALS_UPDATED));
         }
         
         // Handle deletions
@@ -328,22 +328,22 @@ export default function AgentChat({ className }: AgentChatProps) {
           window.dispatchEvent(new CustomEvent(EVENTS.IDEAS_UPDATED));
         }
         
-        if (data.habitsDeletions?.length > 0) {
-          const habitsDeletionMessage: Message = {
+        if (data.goalsDeletions?.length > 0) {
+          const goalsDeletionMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: 'delete_habit',
+            name: 'delete_goal',
             content: JSON.stringify({ 
               success: true, 
-              deletedIds: data.habitsDeletions,
-              count: data.habitsDeletions.length
+              deletedIds: data.goalsDeletions,
+              count: data.goalsDeletions.length
             }),
             timestamp: new Date()
           };
-          newMessages.push(habitsDeletionMessage);
+          newMessages.push(goalsDeletionMessage);
           
           // Dispatch real-time update event
-          window.dispatchEvent(new CustomEvent(EVENTS.HABITS_UPDATED));
+          window.dispatchEvent(new CustomEvent(EVENTS.GOALS_UPDATED));
         }
         
         toast({
@@ -484,30 +484,59 @@ export default function AgentChat({ className }: AgentChatProps) {
         );
       }
       
-      // Handle habits
-      if (functionName?.includes('habit') && data.habits) {
+      // Handle goals
+      if (functionName?.includes('goal') && data.goals) {
+        // Helper to format date more readably
+        const formatDate = (dateStr: string) => {
+          if (!dateStr) return '';
+          
+          try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+              return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              });
+            }
+          } catch (e) {
+            console.error('Error parsing date:', e);
+          }
+          
+          return dateStr;
+        };
+        
         return (
           <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
-            <div className="font-medium text-sm">{data.count} habit{data.count !== 1 ? 's' : ''}</div>
-            {data.habits?.length > 0 ? (
+            <div className="font-medium text-sm">{data.count} goal{data.count !== 1 ? 's' : ''}</div>
+            {data.goals?.length > 0 ? (
               <div className="space-y-1">
-                {data.habits.map((habit: any, i: number) => (
+                {data.goals.map((goal: any, i: number) => (
                   <div key={i} className="bg-black/5 p-1.5 rounded-sm text-xs mt-1">
                     <div className="flex justify-between items-center">
-                      <span className="font-medium text-sm">{habit.title}</span>
-                      <span className="text-muted-foreground text-xs">{habit.frequency} {habit.streak > 0 && `• 🔥 ${habit.streak} day streak`}</span>
+                      <span className="font-medium text-sm">{goal.title}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {goal.category && `${goal.category} • `}
+                        {formatDate(goal.target_date)}
+                      </span>
                     </div>
-                    {habit.target_days && habit.target_days.length > 0 && (
-                      <div className="text-xs mt-0.5">
-                        Days: {habit.target_days.join(', ')}
+                    {goal.description && <div className="text-xs italic mt-0.5">{goal.description}</div>}
+                    {typeof goal.progress === 'number' && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-500 dark:bg-blue-400 h-1.5 rounded-full" 
+                            style={{ width: `${Math.min(Math.max(goal.progress, 0), 100)}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{goal.progress}%</span>
                       </div>
                     )}
-                    {habit.description && <div className="text-xs italic mt-0.5">{habit.description}</div>}
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">No habits found</div>
+              <div className="text-xs text-muted-foreground">No goals found</div>
             )}
           </div>
         );
@@ -519,7 +548,7 @@ export default function AgentChat({ className }: AgentChatProps) {
           ? 'Schedule item' 
           : functionName.includes('idea') 
             ? 'Idea' 
-            : 'Habit';
+            : 'Goal';
             
         return (
           <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
@@ -539,9 +568,9 @@ export default function AgentChat({ className }: AgentChatProps) {
       }
       
       // Handle single item operations
-      if (data.item || data.idea || data.habit) {
-        const item = data.item || data.idea || data.habit;
-        const itemType = data.item ? 'Schedule item' : data.idea ? 'Idea' : 'Habit';
+      if (data.item || data.idea || data.goal) {
+        const item = data.item || data.idea || data.goal;
+        const itemType = data.item ? 'Schedule item' : data.idea ? 'Idea' : 'Goal';
         
         return (
           <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2">

@@ -34,24 +34,24 @@ Deno.serve(async (req)=>{
     // Initialize response data
     let scheduleUpdates = [];
     let ideasUpdates = [];
-    let habitsUpdates = [];
+    let goalsUpdates = [];
     let scheduleDeletions = [];
     let ideasDeletions = [];
-    let habitsDeletions = [];
+    let goalsDeletions = [];
     let bioUpdate = null;
     let userBio = '';
     let finalResponseMessage = '';
     // Data fetched from the database
     let scheduleItems = [];
     let ideas = [];
-    let habits = [];
+    let goals = [];
     // Create a system message with context
     // Use the provided date or fall back to server date if not provided
     const dateToUse = currentDate || new Date().toISOString().split('T')[0];
     const timeToUse = clientTime || new Date().toTimeString().split(' ')[0].slice(0, 5);
     const systemMessage = {
       role: 'system',
-      content: `You are an ULTRA-PROACTIVE, fun, and efficient personal assistant that helps users manage their schedule, ideas, and habits, and supports them in setting and achieving their goals for long-term success and a better life.
+      content: `You are an ULTRA-PROACTIVE, fun, and efficient personal assistant that helps users manage their schedule, ideas, and goals, and supports them in setting and achieving their goals for long-term success and a better life.
 Today's date is ${dateToUse} and the current time is ${timeToUse}.
 
 User information:
@@ -74,12 +74,12 @@ PERSONALITY TRAITS:
 You should help the user by retrieving their data as needed and updating it through function calls.
 Always follow this approach:
 1. ANALYZE: Always fetch and analyze existing data before making any changes
-2. DETECT CONFLICTS: Check for scheduling conflicts, contradictory habits, or redundant ideas
+2. DETECT CONFLICTS: Check for scheduling conflicts, contradictory goals, or redundant ideas
 3. ACT: Take immediate action through appropriate function calls 
 4. RESPOND: Reply in a brief, natural, and upbeat way
 
 WHEN USER MESSAGES ARE VAGUE OR BRIEF:
-- Immediately check their schedule, habits, bio, and ideas
+- Immediately check their schedule, goals, bio, and ideas
 - Make educated guesses about their needs based on time of day, patterns, and bio
 - Offer specific suggestions instead of asking for clarification
 - Present concrete options rather than open-ended questions
@@ -89,14 +89,14 @@ DATA ANALYSIS RULES:
 - Before adding ANY new schedule item, check existing schedule for conflicts
 - Prevent overlapping events unless user explicitly confirms they want this
 - Suggest alternative times or dates for conflicting events
-- Analyze habit patterns to ensure new habits don't contradict existing ones
-- Look for relationships between ideas, habits, and schedule items
+- Analyze goals to ensure they align with user's overall objectives
+- Look for relationships between ideas, goals, and schedule items
 - Consider the user's typical daily/weekly rhythm when making suggestions
 - Make intelligent adjustments based on detected patterns in user data
 
 IMPORTANT: You must maintain and use the user's biographical information to provide personalized assistance:
 1. Always fetch the user's bio with get_user_bio at the start of each conversation
-2. Use this information to proactively suggest relevant schedule items, ideas, habits, and actionable strategies to help the user progress toward their goals, succeed in their endeavors, and enhance their overall well-being
+2. Use this information to proactively suggest relevant schedule items, ideas, goals, and actionable strategies to help the user progress toward their goals, succeed in their endeavors, and enhance their overall well-being
 3. Continuously update the bio as you learn new information about the user's long-term and short-term goals, motivations, challenges, and personal preferences
 4. Base your suggestions and actions on this bio without explaining that you're doing so
 5. When updating the bio, include key information like:
@@ -123,7 +123,13 @@ For schedule items, include:
   - The interval value indicates how often (1=every, 2=every other, etc.)
   - BYDAY can include: MO, TU, WE, TH, FR, SA, SU
 
-CRITICAL: When deleting items, always use the specific delete functions (delete_schedule_item, delete_idea, delete_habit) rather than trying to update them to a deleted state.`
+For goals, include:
+- title: Name of the goal (required)
+- target_date: Target date to achieve the goal in YYYY-MM-DD format (required)
+- progress: Current progress as a percentage from 0-100
+- category: Category of the goal (e.g. "Career", "Health", "Education", "Personal", "Finance")
+
+CRITICAL: When deleting items, always use the specific delete functions (delete_schedule_item, delete_idea, delete_goal) rather than trying to update them to a deleted state.`
     };
     // Convert chat history to ChatGPT format
     const messages = [
@@ -148,7 +154,7 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           // Add a reminder to analyze data before making changes
           ...(iterations === 0 ? [{
             role: 'system',
-            content: 'Remember to fetch and analyze ALL relevant user data BEFORE making any changes. Always check for conflicts in schedule, contradictory habits, or redundant ideas.'
+            content: 'Remember to fetch and analyze ALL relevant user data BEFORE making any changes. Always check for conflicts in schedule, contradictory goals, or redundant ideas.'
           }] : [])
         ],
         functions: functionDefinitions,
@@ -204,23 +210,23 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
             role: 'system',
             content: 'Review these ideas carefully. Look for patterns, connections, and redundancies before suggesting or creating new ideas. Consider how they align with the user\'s goals from their bio.'
           });
-        } else if (functionName === 'get_habits') {
-          // Fetch habits from the database
-          habits = await DatabaseService.getHabits(supabase, userId);
+        } else if (functionName === 'get_goals') {
+          // Fetch goals from the database
+          goals = await DatabaseService.getGoals(supabase, userId);
           messages.push({
             role: 'function',
             name: functionName,
             content: JSON.stringify({
               success: true,
-              habits: habits,
-              count: habits.length
+              goals: goals,
+              count: goals.length
             })
           });
           
-          // Add system message for habit analysis
+          // Add system message for goal analysis
           messages.push({
             role: 'system',
-            content: 'Analyze these habits carefully. Before creating new habits, check for potential conflicts or contradictions with existing ones. Consider how they fit into the user\'s schedule and overall goals.'
+            content: 'Analyze these goals carefully. Before creating new goals, check how they fit into the user\'s existing goals. Consider their timeline, priorities, and how they align with the user\'s overall objectives.'
           });
         } else if (functionName === 'get_user_bio') {
           const userBioResult = await DatabaseService.getUserBio(supabase, userId);
@@ -250,213 +256,256 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
               bio: updatedBio
             })
           });
-          // Update the bioUpdate variable to include it in the response
+          // Update the bio variable
           bioUpdate = functionArgs.bio;
         } else if (functionName === 'create_schedule_item') {
-          // Validate required fields
-          if (!functionArgs.start_time || !functionArgs.end_time) {
+          // Format the arguments for the database service
+          const formattedItem = {
+            user_id: userId,
+            title: functionArgs.title,
+            start_time: functionArgs.start_time,
+            end_time: functionArgs.end_time,
+            description: functionArgs.description,
+            priority: functionArgs.priority,
+            all_day: functionArgs.all_day,
+            recurrence_rule: functionArgs.recurrence_rule,
+            type: functionArgs.type || 'task'
+          };
+          const result = await DatabaseService.saveScheduleItem(supabase, formattedItem);
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: !!result,
+              scheduleItem: result
+            })
+          });
+          // Add to updates list if successful
+          if (result) {
+            scheduleUpdates.push(result);
+          }
+        } else if (functionName === 'update_schedule_item') {
+          // Format the arguments for the database service
+          const formattedItem = {
+            id: functionArgs.id,
+            user_id: userId,
+            title: functionArgs.title,
+            start_time: functionArgs.start_time,
+            end_time: functionArgs.end_time,
+            description: functionArgs.description,
+            priority: functionArgs.priority,
+            all_day: functionArgs.all_day,
+            recurrence_rule: functionArgs.recurrence_rule,
+            type: functionArgs.type
+          };
+          const result = await DatabaseService.saveScheduleItem(supabase, formattedItem);
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: !!result,
+              scheduleItem: result
+            })
+          });
+          // Add to updates list if successful
+          if (result) {
+            scheduleUpdates.push(result);
+          }
+        } else if (functionName === 'create_idea') {
+          // Format the arguments for the database service
+          const formattedIdea = {
+            user_id: userId,
+            content: functionArgs.content
+          };
+          const result = await DatabaseService.saveIdea(supabase, formattedIdea);
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: !!result,
+              idea: result
+            })
+          });
+          // Add to updates list if successful
+          if (result) {
+            ideasUpdates.push(result);
+          }
+        } else if (functionName === 'update_idea') {
+          // Format the arguments for the database service
+          const formattedIdea = {
+            id: functionArgs.id,
+            user_id: userId,
+            content: functionArgs.content
+          };
+          const result = await DatabaseService.saveIdea(supabase, formattedIdea);
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: !!result,
+              idea: result
+            })
+          });
+          // Add to updates list if successful
+          if (result) {
+            ideasUpdates.push(result);
+          }
+        } else if (functionName === 'create_goal') {
+          const goal = await DatabaseService.saveGoal(supabase, {
+            user_id: userId,
+            ...functionArgs
+          });
+          if (goal) {
+            messages.push({
+              role: 'function',
+              name: functionName,
+              content: JSON.stringify({
+                success: true,
+                goal: {
+                  id: goal.id,
+                  title: goal.title,
+                  description: goal.description,
+                  target_date: goal.target_date,
+                  progress: goal.progress,
+                  category: goal.category
+                }
+              })
+            });
+            goalsUpdates.push(goal);
+          } else {
             messages.push({
               role: 'function',
               name: functionName,
               content: JSON.stringify({
                 success: false,
-                error: 'Start time and end time are required fields'
+                error: 'Failed to create goal'
               })
             });
-            continue;
           }
-
-          const newItem = {
-            ...functionArgs,
+        } else if (functionName === 'update_goal') {
+          const goal = await DatabaseService.saveGoal(supabase, {
             user_id: userId,
-          };
-          const savedItem = await DatabaseService.saveScheduleItem(supabase, newItem);
-          if (savedItem) {
-            scheduleUpdates.push(savedItem);
-          }
-          messages.push({
-            role: 'function',
-            name: functionName,
-            content: JSON.stringify({
-              success: !!savedItem,
-              item: savedItem
-            })
+            ...functionArgs
           });
-        } else if (functionName === 'update_schedule_item') {
-          // No validation needed for update operations
-          const updateItem = {
-            ...functionArgs,
-            user_id: userId,
-          };
-          const savedItem = await DatabaseService.saveScheduleItem(supabase, updateItem);
-          if (savedItem) {
-            scheduleUpdates.push(savedItem);
+          if (goal) {
+            messages.push({
+              role: 'function',
+              name: functionName,
+              content: JSON.stringify({
+                success: true,
+                goal: {
+                  id: goal.id,
+                  title: goal.title,
+                  description: goal.description,
+                  target_date: goal.target_date,
+                  progress: goal.progress,
+                  category: goal.category
+                }
+              })
+            });
+            goalsUpdates.push(goal);
+          } else {
+            messages.push({
+              role: 'function',
+              name: functionName,
+              content: JSON.stringify({
+                success: false,
+                error: 'Failed to update goal'
+              })
+            });
           }
-          messages.push({
-            role: 'function',
-            name: functionName,
-            content: JSON.stringify({
-              success: !!savedItem,
-              item: savedItem
-            })
-          });
-        } else if (functionName === 'create_idea') {
-          const newIdea = {
-            ...functionArgs,
-            user_id: userId
-          };
-          const savedIdea = await DatabaseService.saveIdea(supabase, newIdea);
-          if (savedIdea) {
-            ideasUpdates.push(savedIdea);
-          }
-          messages.push({
-            role: 'function',
-            name: functionName,
-            content: JSON.stringify({
-              success: !!savedIdea,
-              idea: savedIdea
-            })
-          });
-        } else if (functionName === 'update_idea') {
-          const updateIdea = {
-            ...functionArgs,
-            user_id: userId
-          };
-          const savedIdea = await DatabaseService.saveIdea(supabase, updateIdea);
-          if (savedIdea) {
-            ideasUpdates.push(savedIdea);
-          }
-          messages.push({
-            role: 'function',
-            name: functionName,
-            content: JSON.stringify({
-              success: !!savedIdea,
-              idea: savedIdea
-            })
-          });
-        } else if (functionName === 'create_habit') {
-          const newHabit = {
-            ...functionArgs,
-            user_id: userId
-          };
-          const savedHabit = await DatabaseService.saveHabit(supabase, newHabit);
-          if (savedHabit) {
-            habitsUpdates.push(savedHabit);
-          }
-          messages.push({
-            role: 'function',
-            name: functionName,
-            content: JSON.stringify({
-              success: !!savedHabit,
-              habit: savedHabit
-            })
-          });
-        } else if (functionName === 'update_habit') {
-          const updateHabit = {
-            ...functionArgs,
-            user_id: userId
-          };
-          const savedHabit = await DatabaseService.saveHabit(supabase, updateHabit);
-          if (savedHabit) {
-            habitsUpdates.push(savedHabit);
-          }
-          messages.push({
-            role: 'function',
-            name: functionName,
-            content: JSON.stringify({
-              success: !!savedHabit,
-              habit: savedHabit
-            })
-          });
         } else if (functionName === 'delete_schedule_item') {
-          const deleted = await DatabaseService.deleteScheduleItem(supabase, functionArgs.id);
-          if (deleted) {
+          const result = await DatabaseService.deleteScheduleItem(supabase, functionArgs.id);
+          messages.push({
+            role: 'function',
+            name: functionName,
+            content: JSON.stringify({
+              success: !!result,
+              deletedId: functionArgs.id
+            })
+          });
+          // Add to deletions list if successful
+          if (result) {
             scheduleDeletions.push(functionArgs.id);
           }
+        } else if (functionName === 'delete_idea') {
+          const result = await DatabaseService.deleteIdea(supabase, functionArgs.id);
           messages.push({
             role: 'function',
             name: functionName,
             content: JSON.stringify({
-              success: deleted
+              success: !!result,
+              deletedId: functionArgs.id
             })
           });
-        } else if (functionName === 'delete_idea') {
-          const deleted = await DatabaseService.deleteIdea(supabase, functionArgs.id);
-          if (deleted) {
+          // Add to deletions list if successful
+          if (result) {
             ideasDeletions.push(functionArgs.id);
           }
+        } else if (functionName === 'delete_goal') {
+          const result = await DatabaseService.deleteGoal(supabase, functionArgs.id);
           messages.push({
             role: 'function',
             name: functionName,
             content: JSON.stringify({
-              success: deleted
+              success: !!result,
+              deletedId: functionArgs.id
             })
           });
-        } else if (functionName === 'delete_habit') {
-          const deleted = await DatabaseService.deleteHabit(supabase, functionArgs.id);
-          if (deleted) {
-            habitsDeletions.push(functionArgs.id);
+          // Add to deletions list if successful
+          if (result) {
+            goalsDeletions.push(functionArgs.id);
           }
-          messages.push({
-            role: 'function',
-            name: functionName,
-            content: JSON.stringify({
-              success: deleted
-            })
-          });
         }
-        // Continue the loop
         iterations++;
+        // Continue the loop unless we've reached some completion criteria
+        shouldContinue = 
+          // Keep going if we're still retrieving data
+          (iterations < 2 && (scheduleItems.length === 0 || ideas.length === 0 || goals.length === 0))
+          // Or if we just completed a data retrieval and should make some updates
+          || (iterations < maxIterations && responseMessage.function_call.name.startsWith('get_') && iterations < 4)
+          // Or if we need to do more operations based on the agent's direction
+          || (iterations < maxIterations && iterations >= 2 && !finalResponseMessage);
       } else {
-        // No function call, so we're done with this iteration
+        // No function call, so break the loop
         shouldContinue = false;
-        finalResponseMessage = responseMessage.content || '';
       }
     }
-    // Get final response if none yet
-    if (!finalResponseMessage) {
-      const finalResponse = await openai.chat.completions.create({
-        model: 'gpt-4-turbo',
-        messages: [
-          ...messages,
-          {
-            role: 'system',
-            content: 'Now provide a final response to the user that is brief, upbeat, and action-oriented. Be conversational and fun while summarizing what you did to help them.'
-          }
-        ],
-        temperature: 0.9
-      });
-      finalResponseMessage = finalResponse.choices[0].message.content || '';
-    }
-    // Return the final response
-    return new Response(JSON.stringify({
+    // Return AI response, with data, thoughts, and sessionId
+    const response = {
       message: finalResponseMessage,
       scheduleUpdates,
       ideasUpdates,
-      habitsUpdates,
+      goalsUpdates,
       scheduleDeletions,
       ideasDeletions,
-      habitsDeletions,
+      goalsDeletions,
       bioUpdate,
-      thoughts,
-      sessionId
-    }), {
+      sessionId,
+      // Include retrieved data for display purposes
+      scheduleItems: scheduleItems.length > 0 ? scheduleItems : undefined,
+      ideas: ideas.length > 0 ? ideas : undefined,
+      goals: goals.length > 0 ? goals : undefined,
+      // Include debug information in development mode
+      ...(Deno.env.get('ENVIRONMENT') === 'development' ? { thoughts } : {})
+    };
+    return new Response(JSON.stringify(response), {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'
-      },
-      status: 200
+      }
     });
-  } catch (error) {
-    console.error('Error in agent edge function:', error);
+  }catch(error){
+    console.error('Error in edge function:', error);
     return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : 'An error occurred processing your request'
+      error: error.message || 'An error occurred'
     }), {
+      status: 500,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'
-      },
-      status: 500
+      }
     });
   }
 });
+
