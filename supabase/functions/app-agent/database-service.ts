@@ -131,100 +131,188 @@ export const DatabaseService = {
     return data;
   },
   async saveScheduleItem (supabase: SupabaseClient, item: ScheduleItem) {
-    // Validate required fields
-    if (!item.start_time) {
-      console.error('Start time is required for schedule items');
-      return null;
-    }
+    // For updates, we only need the id
+    if (item.id) {
+      // This is an update operation
+      const updateData: any = {};
+      
+      // Only include fields that are provided
+      if (item.title) updateData.title = item.title;
+      if (item.description !== undefined) updateData.description = item.description;
+      if (item.priority) updateData.priority = item.priority;
+      if (item.all_day !== undefined) updateData.all_day = item.all_day;
+      if (item.recurrence_rule) updateData.recurrence_rule = item.recurrence_rule;
+      
+      // Handle time fields if provided
+      if (item.start_time) {
+        // Parse hours and minutes from the time string
+        const [startHours, startMinutes] = parseTimeString(item.start_time);
+        
+        // Create date object
+        const today = new Date();
+        const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), startHours, startMinutes);
+        
+        // Ensure the date is valid
+        if (!isNaN(startDate.getTime())) {
+          updateData.start_time = startDate.toISOString();
+        }
+      }
+      
+      if (item.end_time) {
+        // Parse hours and minutes from the time string
+        const [endHours, endMinutes] = parseTimeString(item.end_time);
+        
+        // Create date object
+        const today = new Date();
+        const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), endHours, endMinutes);
+        
+        // Ensure the date is valid
+        if (!isNaN(endDate.getTime())) {
+          updateData.end_time = endDate.toISOString();
+        }
+      }
+      
+      // Update the schedule item
+      const { data, error } = await supabase.from('schedule_items').update(updateData).eq('id', item.id).select('*');
+      if (error) {
+        console.error('Error updating schedule item:', error);
+        return null;
+      }
+      return data[0] || null;
+    } else {
+      // This is a create operation
+      // Validate required fields
+      if (!item.start_time) {
+        console.error('Start time is required for schedule items');
+        return null;
+      }
 
-    // If end_time is not provided, set it to 1 hour after start_time
-    if (!item.end_time) {
-      const startDate = new Date(item.start_time);
-      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
-      item.end_time = endDate.toISOString();
-    }
+      // If end_time is not provided, set it to 1 hour after start_time
+      if (!item.end_time) {
+        const startDate = new Date(item.start_time);
+        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
+        item.end_time = endDate.toISOString();
+      }
 
-    // Convert time strings to ISO timestamps
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    console.log('item.start_time', item.start_time);
-    console.log('item.end_time', item.end_time);
-    
-    // Parse hours and minutes from the time strings
-    const [startHours, startMinutes] = parseTimeString(item.start_time);
-    const [endHours, endMinutes] = parseTimeString(item.end_time);
-    
-    // Create date objects
-    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), startHours, startMinutes);
-    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), endHours, endMinutes);
-    
-    // Ensure the dates are valid
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      console.error(`Invalid date created from: ${todayStr} ${item.start_time} / ${item.end_time}`);
-      return null;
+      // Convert time strings to ISO timestamps
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      console.log('item.start_time', item.start_time);
+      console.log('item.end_time', item.end_time);
+      
+      // Parse hours and minutes from the time strings
+      const [startHours, startMinutes] = parseTimeString(item.start_time);
+      const [endHours, endMinutes] = parseTimeString(item.end_time);
+      
+      // Create date objects
+      const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), startHours, startMinutes);
+      const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), endHours, endMinutes);
+      
+      // Ensure the dates are valid
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.error(`Invalid date created from: ${todayStr} ${item.start_time} / ${item.end_time}`);
+        return null;
+      }
+      
+      // Ensure end time is after start time
+      if (endDate <= startDate) {
+        console.error('End time must be after start time');
+        return null;
+      }
+      
+      // Convert to ISO string for storage in the database
+      const startTimestamp = startDate.toISOString();
+      const endTimestamp = endDate.toISOString();
+      
+      // Create a new schedule item
+      const { data, error } = await supabase.from('schedule_items').insert({
+        user_id: item.user_id,
+        title: item.title,
+        start_time: startTimestamp,
+        end_time: endTimestamp,
+        description: item.description,
+        priority: item.priority,
+        all_day: item.all_day,
+        recurrence_rule: item.recurrence_rule
+      }).select('*');
+      if (error) {
+        console.error('Error saving schedule item:', error);
+        return null;
+      }
+      return data[0] || null;
     }
-    
-    // Ensure end time is after start time
-    if (endDate <= startDate) {
-      console.error('End time must be after start time');
-      return null;
-    }
-    
-    // Convert to ISO string for storage in the database
-    const startTimestamp = startDate.toISOString();
-    const endTimestamp = endDate.toISOString();
-    
-    // Create a new schedule item
-    const { data, error } = await supabase.from('schedule_items').insert({
-      user_id: item.user_id,
-      title: item.title,
-      start_time: startTimestamp,
-      end_time: endTimestamp,
-      description: item.description,
-      priority: item.priority,
-      all_day: item.all_day,
-      recurrence_rule: item.recurrence_rule
-    }).select();
-    if (error) {
-      console.error('Error saving schedule item:', error);
-      return null;
-    }
-    return data;
   },
   async saveIdea (supabase: SupabaseClient, idea: Idea) {
-    // Prepare idea for database
-    const ideaItem = {
-      user_id: idea.user_id,
-      content: idea.content || idea.title // Support both content and title fields
-    };
-    // If ID exists, update, otherwise insert
-    const operation = idea.id ? supabase.from('ideas').update(ideaItem).eq('id', idea.id) : supabase.from('ideas').insert(ideaItem);
-    const { data, error } = await operation.select().single();
-    if (error) {
-      console.error('Error saving idea:', error);
-      return null;
+    // For updates, we only need the id
+    if (idea.id) {
+      // This is an update operation
+      const updateData: any = {};
+      
+      // Only include fields that are provided
+      if (idea.content) updateData.content = idea.content;
+      if (idea.title) updateData.title = idea.title;
+      
+      // Update the idea
+      const { data, error } = await supabase.from('ideas').update(updateData).eq('id', idea.id).select('*');
+      if (error) {
+        console.error('Error updating idea:', error);
+        return null;
+      }
+      return data[0] || null;
+    } else {
+      // This is a create operation
+      // Create a new idea
+      const { data, error } = await supabase.from('ideas').insert({
+        user_id: idea.user_id,
+        content: idea.content,
+        title: idea.title
+      }).select('*');
+      if (error) {
+        console.error('Error saving idea:', error);
+        return null;
+      }
+      return data[0] || null;
     }
-    return data;
   },
   async saveHabit (supabase: SupabaseClient, habit: Habit) {
-    // Prepare habit for database
-    const habitItem = {
-      user_id: habit.user_id,
-      title: habit.title,
-      frequency: habit.frequency || 'Daily',
-      type: habit.type || 'daily',
-      description: habit.description,
-      target_days: habit.target_days,
-      streak: habit.streak || 0
-    };
-    // If ID exists, update, otherwise insert
-    const operation = habit.id ? supabase.from('habits').update(habitItem).eq('id', habit.id) : supabase.from('habits').insert(habitItem);
-    const { data, error } = await operation.select().single();
-    if (error) {
-      console.error('Error saving habit:', error);
-      return null;
+    // For updates, we only need the id
+    if (habit.id) {
+      // This is an update operation
+      const updateData: any = {};
+      
+      // Only include fields that are provided
+      if (habit.title) updateData.title = habit.title;
+      if (habit.description !== undefined) updateData.description = habit.description;
+      if (habit.frequency) updateData.frequency = habit.frequency;
+      if (habit.type) updateData.type = habit.type;
+      if (habit.target_days) updateData.target_days = habit.target_days;
+      if (habit.streak !== undefined) updateData.streak = habit.streak;
+      
+      // Update the habit
+      const { data, error } = await supabase.from('habits').update(updateData).eq('id', habit.id).select('*');
+      if (error) {
+        console.error('Error updating habit:', error);
+        return null;
+      }
+      return data[0] || null;
+    } else {
+      // This is a create operation
+      // Create a new habit
+      const { data, error } = await supabase.from('habits').insert({
+        user_id: habit.user_id,
+        title: habit.title,
+        description: habit.description,
+        frequency: habit.frequency,
+        type: habit.type,
+        target_days: habit.target_days,
+        streak: habit.streak || 0
+      }).select('*');
+      if (error) {
+        console.error('Error saving habit:', error);
+        return null;
+      }
+      return data[0] || null;
     }
-    return data;
   },
   async deleteScheduleItem (supabase: SupabaseClient, itemId: string) {
     const { error } = await supabase.from('schedule_items').delete().eq('id', itemId);

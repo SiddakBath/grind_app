@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Lightbulb, Plus, Sparkles, PlusCircle, Maximize2 } from 'lucide-react';
+import { Lightbulb, Plus, Sparkles, PlusCircle, Maximize2, Trash2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
   
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const { toast } = useToast();
   
   // Function to load ideas from database
@@ -174,6 +175,31 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
     }
   }, [activeQuery, updates]);
 
+  // Function to delete an idea
+  const handleDeleteIdea = async (id: string) => {
+    try {
+      setIsDeleting(id);
+      await DatabaseService.deleteIdea(id);
+      
+      // Update the UI
+      setIdeas(prev => prev.filter(idea => idea.id !== id));
+      
+      toast({
+        title: "Success",
+        description: "Idea deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting idea:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete idea",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
   const toggleExpandedView = () => {
     if (onExpandToggle) {
       onExpandToggle(!isExpanded);
@@ -217,10 +243,23 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
                 className={cn(
                   "p-3 rounded-lg border border-border/50 transition-all",
                   "hover:bg-muted/50 hover:border-border",
-                  idea.id === ideas[ideas.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3"
+                  idea.id === ideas[ideas.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3",
+                  isDeleting === idea.id && "opacity-50"
                 )}
               >
-                <p className="text-sm">{idea.content}</p>
+                <div className="flex justify-between items-start">
+                  <p className="text-sm">{idea.content}</p>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6 opacity-40 hover:opacity-100"
+                    onClick={() => handleDeleteIdea(idea.id)}
+                    disabled={isDeleting === idea.id}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="sr-only">Delete idea</span>
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   {typeof idea.createdAt === 'string' 
                     ? new Date(idea.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

@@ -283,19 +283,7 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
             })
           });
         } else if (functionName === 'update_schedule_item') {
-          // Validate required fields
-          if (!functionArgs.start_time || !functionArgs.end_time) {
-            messages.push({
-              role: 'function',
-              name: functionName,
-              content: JSON.stringify({
-                success: false,
-                error: 'Start time and end time are required fields'
-              })
-            });
-            continue;
-          }
-
+          // No validation needed for update operations
           const updateItem = {
             ...functionArgs,
             user_id: userId,

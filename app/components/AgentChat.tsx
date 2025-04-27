@@ -21,7 +21,6 @@ interface Message {
   role: 'user' | 'assistant' | 'function';
   content: string;
   timestamp: Date;
-  function_call?: FunctionCall;
   name?: string; // For function response messages
 }
 
@@ -123,15 +122,6 @@ export default function AgentChat({ className }: AgentChatProps) {
             name: msg.name,
             content: msg.content
           };
-        } else if (msg.function_call) {
-          return {
-            role: msg.role,
-            content: msg.content,
-            function_call: {
-              name: msg.function_call.name,
-              arguments: JSON.stringify(msg.function_call.arguments)
-            }
-          };
         } else {
           return {
             role: msg.role,
@@ -167,7 +157,6 @@ export default function AgentChat({ className }: AgentChatProps) {
       
       // Extract message from response
       let messageContent = "I've processed your request.";
-      let functionCall: FunctionCall | undefined;
       
       if (data.message) {
         messageContent = data.message;
@@ -178,32 +167,9 @@ export default function AgentChat({ className }: AgentChatProps) {
         // Parse the thoughts string to extract any function calls
         const thoughtsStr = data.thoughts;
         
-        // Improved regex to better match function calls in the thoughts
-        const functionCallMatch = thoughtsStr.match(/function_call":\s*{([^}]+)}/);
-        
-        if (functionCallMatch) {
-          try {
-            // Try to parse the function call from the thoughts
-            const functionCallString = `{${functionCallMatch[1]}}`;
-            
-            // Improved regex to handle property names with or without quotes
-            const parsedCall = JSON.parse(functionCallString.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":'));
-            
-            if (parsedCall.name) {
-              functionCall = {
-                name: parsedCall.name,
-                arguments: typeof parsedCall.arguments === 'string' 
-                  ? JSON.parse(parsedCall.arguments) 
-                  : parsedCall.arguments
-              };
-              
-              // Log the extracted function call for debugging
-              console.log('Extracted function call:', functionCall);
-            }
-          } catch (e) {
-            console.error('Error parsing function call from thoughts:', e);
-          }
-        }
+        // No need to extract function calls from thoughts as we're already
+        // getting them through the updates that are returned
+        console.log('Agent thoughts:', thoughtsStr);
       }
       
       // Add agent message to chat
@@ -212,7 +178,6 @@ export default function AgentChat({ className }: AgentChatProps) {
         role: 'assistant',
         content: messageContent,
         timestamp: new Date(),
-        function_call: functionCall
       };
       
       const newMessages: Message[] = [agentMessage];
@@ -276,7 +241,7 @@ export default function AgentChat({ className }: AgentChatProps) {
           const scheduleMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: functionCall?.name || 'create_schedule_item',
+            name: (data.scheduleUpdates[0].id ? 'update_schedule_item' : 'create_schedule_item'),
             content: JSON.stringify({ 
               success: true, 
               scheduleItems: data.scheduleUpdates,
@@ -294,7 +259,7 @@ export default function AgentChat({ className }: AgentChatProps) {
           const ideasMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: functionCall?.name || 'create_idea',
+            name: (data.ideasUpdates[0].id ? 'update_idea' : 'create_idea'),
             content: JSON.stringify({ 
               success: true, 
               ideas: data.ideasUpdates,
@@ -312,7 +277,7 @@ export default function AgentChat({ className }: AgentChatProps) {
           const habitsMessage: Message = {
             id: generateId(),
             role: 'function',
-            name: functionCall?.name || 'create_habit',
+            name: (data.habitsUpdates[0].id ? 'update_habit' : 'create_habit'),
             content: JSON.stringify({ 
               success: true, 
               habits: data.habitsUpdates,
@@ -468,14 +433,14 @@ export default function AgentChat({ className }: AgentChatProps) {
           return timeStr;
         };
 
-        console.log(data.scheduleItems[0]);
+        console.log(data.scheduleItems);
         
         return (
           <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
             <div className="font-medium text-sm">{data.count} schedule item{data.count !== 1 ? 's' : ''}</div>
             {data.scheduleItems.length > 0 ? (
               <div className="space-y-1">
-                {data.scheduleItems[0].map((item: any, i: number) => (
+                {data.scheduleItems.map((item: any, i: number) => (
                   <div key={i} className="bg-black/5 p-1.5 rounded-sm text-xs mt-1">
                     <div className="flex justify-between items-center">
                       <span className="font-medium text-sm">{item.title}</span>
@@ -629,12 +594,12 @@ export default function AgentChat({ className }: AgentChatProps) {
     // Handle common function prefixes
     if (withSpaces.startsWith('create ')) {
       return `Added ${withSpaces.substring(7)}`;
+    } else if (withSpaces.startsWith('update ')) {
+      return `Updated ${withSpaces.substring(7)}`;
     } else if (withSpaces.startsWith('delete ')) {
       return `Removed ${withSpaces.substring(7)}`;
     } else if (withSpaces.startsWith('get ')) {
       return `Retrieved ${withSpaces.substring(4)}`;
-    } else if (withSpaces.startsWith('update ')) {
-      return `Updated ${withSpaces.substring(7)}`;
     }
     
     // Capitalize first letter of each word
@@ -769,15 +734,6 @@ export default function AgentChat({ className }: AgentChatProps) {
                       {msg.role === 'function' ? (
                         <div className="text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded overflow-x-auto">
                           {formatFunctionResponse(msg.content, msg.name)}
-                        </div>
-                      ) : msg.function_call ? (
-                        <div>
-                          <div className="text-sm mb-1">{msg.content}</div>
-                          <div className="bg-blue-50 dark:bg-blue-900/20 rounded p-2 text-xs font-mono my-1">
-                            <span className="text-blue-600 dark:text-blue-400">function:</span> {msg.function_call.name}
-                            <br />
-                            <span className="text-blue-600 dark:text-blue-400">arguments:</span> {formatArguments(msg.function_call.arguments)}
-                          </div>
                         </div>
                       ) : (
                         <div className="text-sm whitespace-pre-wrap">

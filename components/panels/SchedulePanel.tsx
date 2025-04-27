@@ -593,7 +593,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                           )}
                           style={{
                             minHeight: item.all_day ? '80px' : `${Math.max(80, calculateDuration(item.start_time, item.end_time) / 15 * 20)}px`,
-                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.75rem)') : '100%'
+                            minWidth: items.length > 1 ? (isExpanded ? 'calc(50% - 1rem)' : 'calc(50% - 0.75rem)') : '100%',
+                            maxHeight: items.length === 1 ? 'auto' : 'none'
                           }}
                         >
                           <div className={cn(
@@ -688,7 +689,7 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                             item.priority === 'low' && "border-l-2 border-green-500"
                           )}
                           style={{
-                            height: `${Math.max(24, calculateDuration(item.start_time, item.end_time) / 30 * 12)}px`,
+                            height: getItemsForDate(day).length === 1 ? 'auto' : `${Math.max(24, calculateDuration(item.start_time, item.end_time) / 30 * 12)}px`,
                           }}
                         >
                           <div className="truncate flex-1">

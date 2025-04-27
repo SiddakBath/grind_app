@@ -169,30 +169,9 @@ export const functionDefinitions = [
           type: 'string',
           description: 'iCal RRULE string like "FREQ=DAILY;INTERVAL=1"'
         },
-        recurring: {
-          type: 'boolean',
-          description: 'DEPRECATED: Whether this is a recurring event. Use recurrence_rule instead.'
-        },
-        frequency: {
-          type: 'string',
-          description: 'DEPRECATED: Frequency for recurring events. Use recurrence_rule instead.'
-        },
-        interval: {
-          type: 'number',
-          description: 'DEPRECATED: Interval for recurring events. Use recurrence_rule instead.'
-        },
-        repeat_days: {
-          type: 'array',
-          items: {
-            type: 'string'
-          },
-          description: 'DEPRECATED: Days of the week for recurring events. Use recurrence_rule instead.'
-        }
       },
       required: [
-        'id',
-        'start_time',
-        'end_time'
+        'id'
       ]
     }
   },
@@ -228,8 +207,7 @@ export const functionDefinitions = [
         }
       },
       required: [
-        'id',
-        'content'
+        'id'
       ]
     }
   },
