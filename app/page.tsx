@@ -29,10 +29,10 @@ export default async function Home() {
               </a>
             </div>
             <h1 className="mt-10 text-4xl font-bold tracking-tight sm:text-6xl">
-              Your AI-Powered Productivity Assistant
+              Personalized AI Companion for Scheduling, Brainstorming, and Habit Tracking
             </h1>
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              Streamline your workflow, automate tasks, and boost your productivity with our intelligent AI assistant. Experience the future of work today.
+              Chat with our intelligent AI to craft personalized schedules, spark creative ideas, and build better habits— all in one unified app.
             </p>
             <div className="mt-10 flex items-center gap-x-6">
               <Link
@@ -66,12 +66,12 @@ export default async function Home() {
       <div id="features" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-primary">Powerful Features</h2>
+            <h2 className="text-base font-semibold leading-7 text-primary">Core Features</h2>
             <p className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              Everything you need to boost your productivity
+              Streamline your schedule, ideation, and habit building
             </p>
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              Our AI assistant helps you manage tasks, automate workflows, and stay organized with intelligent features designed for modern professionals.
+              Use AI-powered chat to plan your day, generate new ideas, and stay on track with your habits seamlessly.
             </p>
           </div>
           <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
@@ -96,15 +96,15 @@ export default async function Home() {
 
 const features = [
   {
-    name: 'AI-Powered Assistant',
-    description: 'Get intelligent help with your tasks and workflows, powered by advanced AI technology.',
+    name: 'Personalized Schedules',
+    description: 'Generate customized daily and weekly schedules tailored to your goals and preferences.',
   },
   {
-    name: 'Task Management',
-    description: 'Organize and track your tasks efficiently with our intuitive dashboard and smart categorization.',
+    name: 'Idea Generation',
+    description: 'Brainstorm creative ideas and solutions with AI-assisted prompts and suggestions.',
   },
   {
-    name: 'Workflow Automation',
-    description: 'Automate repetitive tasks and create custom workflows to save time and reduce errors.',
+    name: 'Habit Tracking',
+    description: 'Build and maintain healthy habits with automated reminders and progress insights.',
   },
 ];
