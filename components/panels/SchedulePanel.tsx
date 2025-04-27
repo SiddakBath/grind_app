@@ -565,8 +565,8 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
         isExpanded && "px-6"
       )}>
         {viewMode === 'day' ? (
-          <div className={isExpanded ? "max-w-4xl mx-auto" : ""}>
-            {scheduleItems.length > 0 ? (
+          <div className={isExpanded ? "max-w-4xl mx-auto h-full" : "h-full"}>
+            {getItemsForDate(currentDate).length > 0 ? (
               <div className="space-y-6">
                 {Object.entries(groupItemsByTime(getItemsForDate(currentDate))).map(([time, items]) => (
                   <div key={time} className={cn("mb-6", isExpanded && "mb-8")}>
@@ -648,9 +648,12 @@ export function SchedulePanel({ activeQuery, updates = [], isExpanded = false, o
                 <div className="rounded-full bg-primary/10 p-4 mb-4">
                   <CalendarClock className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-medium mb-2">No events scheduled</h3>
+                <h3 className="text-xl font-medium mb-2">No events for {format(currentDate, 'MMMM d')}</h3>
                 <p className="text-sm text-muted-foreground max-w-xs">
-                  Tell the AI about your events or click the + button to add tasks.
+                  {isToday(currentDate) 
+                    ? "Your schedule is clear for today. Add some tasks or tell the AI about your events."
+                    : `Your schedule is clear for ${format(currentDate, 'MMMM d')}. Add some tasks or tell the AI about your events.`
+                  }
                 </p>
               </div>
             )}

@@ -56,10 +56,8 @@ export function Header() {
   };
 
   const navItems = [
-    { name: 'Dashboard', href: '/' },
-    { name: 'Analytics', href: '/analytics' },
-    { name: 'Tasks', href: '/tasks' },
-    { name: 'Settings', href: '/settings' },
+    { name: 'Dashboard', href: '/dashboard' },
+    { name: 'Login', href: '/login' },
   ];
 
   // Compute user initials from full_name or fallback to email

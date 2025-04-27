@@ -39,10 +39,10 @@ export default function AgentChat({ className }: AgentChatProps) {
 
   // Suggested prompts for empty state
   const suggestedPrompts = [
-    "What's on my schedule today?",
-    "Add a new task for tomorrow",
-    "I have an idea for a project",
-    "Track my habit progress",
+    "Optimize today's schedule",
+    "Create a deep work block for my startup",
+    "What's blocking my progress right now?",
+    "What's my next milestone to hit?",
   ];
 
   // Generate a unique session ID
