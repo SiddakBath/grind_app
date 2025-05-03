@@ -25,6 +25,8 @@ interface IdeasPanelProps {
 
 export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onExpandToggle }: IdeasPanelProps) {
   const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [newIdeaContent, setNewIdeaContent] = useState('');
+  const [isAddingIdea, setIsAddingIdea] = useState(false);
   
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
@@ -200,6 +202,38 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
     }
   };
 
+  // Function to handle adding a new idea
+  const handleAddIdea = async () => {
+    if (!newIdeaContent.trim()) return;
+    
+    try {
+      setIsAddingIdea(true);
+      
+      // Save to database
+      await DatabaseService.saveIdeas([{ content: newIdeaContent.trim() }]);
+      
+      // Clear input
+      setNewIdeaContent('');
+      
+      // Refresh ideas list
+      await loadIdeas();
+      
+      toast({
+        title: "Success",
+        description: "Idea added successfully",
+      });
+    } catch (error) {
+      console.error('Error adding idea:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add idea",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingIdea(false);
+    }
+  };
+
   const toggleExpandedView = () => {
     if (onExpandToggle) {
       onExpandToggle(!isExpanded);
@@ -222,10 +256,32 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
           <span>Ideas</span>
         </CardTitle>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Plus className="h-4 w-4" />
-            <span className="sr-only">Add idea</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newIdeaContent}
+              onChange={(e) => setNewIdeaContent(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAddIdea();
+                }
+              }}
+              placeholder="Add new idea..."
+              className="w-48 h-8 px-2 text-sm rounded-md border border-border/50 bg-background/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              disabled={isAddingIdea}
+            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={handleAddIdea}
+              disabled={isAddingIdea || !newIdeaContent.trim()}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="sr-only">Add idea</span>
+            </Button>
+          </div>
           <Button variant="outline" size="sm" onClick={toggleExpandedView} className="ml-auto">
             <Maximize2 className="h-3 w-3" />
           </Button>
