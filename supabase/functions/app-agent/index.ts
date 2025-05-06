@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.38.4";
-import OpenAI from 'npm:openai@4.12.1';
+import OpenAI from 'npm:openai@4.28.0';
 import { corsHeaders } from './cors-headers.ts';
 import { DatabaseService } from './database-service.ts';
 import { functionDefinitions } from './function-definitions.ts';
@@ -147,38 +147,51 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
     let thoughts = '';
     while(shouldContinue && iterations < maxIterations){
       // Call OpenAI with the current messages and function definitions
-      const response = await openai.chat.completions.create({
+      const response = await openai.responses.create({
         model: 'gpt-4-turbo',
-        messages: [
-          ...messages,
-          // Add a reminder to analyze data before making changes
-          ...(iterations === 0 ? [{
-            role: 'system',
-            content: 'Remember to fetch and analyze ALL relevant user data BEFORE making any changes. Always check for conflicts in schedule, contradictory goals, or redundant ideas.'
-          }] : [])
-        ],
-        functions: functionDefinitions,
-        function_call: 'auto',
-        temperature: 0.8 // Slightly increased for more personality
+        input: {
+          messages: [
+            ...messages,
+            ...(iterations === 0 ? [{
+              role: 'system',
+              content: 'Remember to fetch and analyze ALL relevant user data BEFORE making any changes. Always check for conflicts in schedule, contradictory goals, or redundant ideas.'
+            }] : [])
+          ]
+        },
+        tools: functionDefinitions.map(def => ({
+          type: 'function',
+          function: def
+        })),
+        tool_choice: 'auto',
+        temperature: 0.8, // Slightly increased for more personality
+        response_format: { type: "text" }
       });
-      const responseChoice = response.choices[0];
-      const responseMessage = responseChoice.message;
+
+      // Get the first response message
+      const responseMessage = response.output[0];
+      
       // Add the assistant's thinking to our thought log
       if (responseMessage.content) {
         thoughts += responseMessage.content + '\n';
-        messages.push(responseMessage);
+        messages.push({
+          role: 'assistant',
+          content: responseMessage.content
+        });
         finalResponseMessage = responseMessage.content;
       }
-      // Check if there's a function call
-      if (responseMessage.function_call) {
-        const functionName = responseMessage.function_call.name;
-        const functionArgs = functionName.startsWith('get_') ? {} : JSON.parse(responseMessage.function_call.arguments);
+
+      // Check if there's a tool call
+      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+        const toolCall = responseMessage.tool_calls[0];
+        const functionName = toolCall.function.name;
+        const functionArgs = functionName.startsWith('get_') ? {} : JSON.parse(toolCall.function.arguments);
         // Handle function calls for data retrieval and updates
         if (functionName === 'get_schedule_items') {
           // Fetch schedule items from the database
           scheduleItems = await DatabaseService.getScheduleItems(supabase, userId);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: true,
@@ -196,7 +209,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           // Fetch ideas from the database
           ideas = await DatabaseService.getIdeas(supabase, userId);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: true,
@@ -214,7 +228,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           // Fetch goals from the database
           goals = await DatabaseService.getGoals(supabase, userId);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: true,
@@ -231,7 +246,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
         } else if (functionName === 'get_user_bio') {
           const userBioResult = await DatabaseService.getUserBio(supabase, userId);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: true,
@@ -249,7 +265,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
         } else if (functionName === 'update_user_bio') {
           const updatedBio = await DatabaseService.updateUserBio(supabase, userId, functionArgs.bio);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!updatedBio,
@@ -273,7 +290,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           };
           const result = await DatabaseService.saveScheduleItem(supabase, formattedItem);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!result,
@@ -300,7 +318,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           };
           const result = await DatabaseService.saveScheduleItem(supabase, formattedItem);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!result,
@@ -319,7 +338,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           };
           const result = await DatabaseService.saveIdea(supabase, formattedIdea);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!result,
@@ -339,7 +359,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           };
           const result = await DatabaseService.saveIdea(supabase, formattedIdea);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!result,
@@ -357,7 +378,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           });
           if (goal) {
             messages.push({
-              role: 'function',
+              role: 'tool',
+              tool_call_id: toolCall.id,
               name: functionName,
               content: JSON.stringify({
                 success: true,
@@ -374,7 +396,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
             goalsUpdates.push(goal);
           } else {
             messages.push({
-              role: 'function',
+              role: 'tool',
+              tool_call_id: toolCall.id,
               name: functionName,
               content: JSON.stringify({
                 success: false,
@@ -389,7 +412,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           });
           if (goal) {
             messages.push({
-              role: 'function',
+              role: 'tool',
+              tool_call_id: toolCall.id,
               name: functionName,
               content: JSON.stringify({
                 success: true,
@@ -406,7 +430,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
             goalsUpdates.push(goal);
           } else {
             messages.push({
-              role: 'function',
+              role: 'tool',
+              tool_call_id: toolCall.id,
               name: functionName,
               content: JSON.stringify({
                 success: false,
@@ -417,7 +442,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
         } else if (functionName === 'delete_schedule_item') {
           const result = await DatabaseService.deleteScheduleItem(supabase, functionArgs.id);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!result,
@@ -431,7 +457,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
         } else if (functionName === 'delete_idea') {
           const result = await DatabaseService.deleteIdea(supabase, functionArgs.id);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!result,
@@ -445,7 +472,8 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
         } else if (functionName === 'delete_goal') {
           const result = await DatabaseService.deleteGoal(supabase, functionArgs.id);
           messages.push({
-            role: 'function',
+            role: 'tool',
+            tool_call_id: toolCall.id,
             name: functionName,
             content: JSON.stringify({
               success: !!result,
@@ -463,11 +491,11 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           // Keep going if we're still retrieving data
           (iterations < 2 && (scheduleItems.length === 0 || ideas.length === 0 || goals.length === 0))
           // Or if we just completed a data retrieval and should make some updates
-          || (iterations < maxIterations && responseMessage.function_call.name.startsWith('get_') && iterations < 4)
+          || (iterations < maxIterations && functionName.startsWith('get_') && iterations < 4)
           // Or if we need to do more operations based on the agent's direction
           || (iterations < maxIterations && iterations >= 2 && !finalResponseMessage);
       } else {
-        // No function call, so break the loop
+        // No tool call, so break the loop
         shouldContinue = false;
       }
     }
