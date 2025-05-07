@@ -2,7 +2,7 @@ import { SupabaseClient } from "npm:@supabase/supabase-js@2.38.4";
 
 // Define interfaces for the database models
 interface ScheduleItem {
-  id: string;
+  id?: string;
   user_id: string;
   title: string;
   start_time: string;
@@ -32,6 +32,18 @@ interface Goal {
   target_date: string;  // ISO date string (YYYY-MM-DD)
   progress?: number;    // 0-100 percentage
   category?: string;    // Category for organizing goals
+}
+
+export interface Resource {
+  id: string;
+  user_id: string;
+  title: string;
+  url: string;
+  description: string;
+  category: 'Article' | 'Video' | 'Course' | 'Tool';
+  relevance_score: number;
+  created_at: string;
+  last_accessed: string;
 }
 
 // Database service functions that match the actual schema
@@ -341,6 +353,68 @@ export const DatabaseService = {
       return null;
     }
     return { success: true };
+  },
+  async createResource(
+    supabase: any,
+    userId: string,
+    resource: Omit<Resource, 'id' | 'user_id' | 'created_at' | 'last_accessed'>
+  ): Promise<Resource> {
+    const { data, error } = await supabase
+      .from('resources')
+      .insert({
+        user_id: userId,
+        ...resource,
+        created_at: new Date().toISOString(),
+        last_accessed: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+  async getResources(supabase: any, userId: string): Promise<Resource[]> {
+    const { data, error } = await supabase
+      .from('resources')
+      .select('*')
+      .eq('user_id', userId)
+      .order('relevance_score', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+  async updateResource(
+    supabase: any,
+    userId: string,
+    resourceId: string,
+    updates: Partial<Omit<Resource, 'id' | 'user_id' | 'created_at'>>
+  ): Promise<Resource> {
+    const { data, error } = await supabase
+      .from('resources')
+      .update({
+        ...updates,
+        last_accessed: new Date().toISOString()
+      })
+      .eq('id', resourceId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+  async deleteResource(
+    supabase: any,
+    userId: string,
+    resourceId: string
+  ): Promise<void> {
+    const { error } = await supabase
+      .from('resources')
+      .delete()
+      .eq('id', resourceId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
   }
 };
 

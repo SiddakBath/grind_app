@@ -35,9 +35,11 @@ Deno.serve(async (req)=>{
     let scheduleUpdates = [];
     let ideasUpdates = [];
     let goalsUpdates = [];
+    let resourcesUpdates = [];
     let scheduleDeletions = [];
     let ideasDeletions = [];
     let goalsDeletions = [];
+    let resourcesDeletions = [];
     let bioUpdate = null;
     let userBio = '';
     let finalResponseMessage = '';
@@ -51,7 +53,7 @@ Deno.serve(async (req)=>{
     const timeToUse = clientTime || new Date().toTimeString().split(' ')[0].slice(0, 5);
     const systemMessage = {
       role: 'system',
-      content: `You are an ULTRA-PROACTIVE, fun, and efficient personal assistant that helps users manage their schedule, ideas, and goals, and supports them in setting and achieving their goals for long-term success and a better life.
+      content: `You are an ULTRA-PROACTIVE, fun, and efficient personal assistant that helps users manage their schedule, ideas, goals, and resources, and supports them in setting and achieving their goals for long-term success and a better life.
 Today's date is ${dateToUse} and the current time is ${timeToUse}.
 
 User information:
@@ -129,7 +131,26 @@ For goals, include:
 - progress: Current progress as a percentage from 0-100
 - category: Category of the goal (e.g. "Career", "Health", "Education", "Personal", "Finance")
 
-CRITICAL: When deleting items, always use the specific delete functions (delete_schedule_item, delete_idea, delete_goal) rather than trying to update them to a deleted state.`
+CRITICAL: When deleting items, always use the specific delete functions (delete_schedule_item, delete_idea, delete_goal) rather than trying to update them to a deleted state.
+
+RESOURCE MANAGEMENT:
+1. Proactively search for and suggest relevant resources based on:
+   - User's current goals and progress
+   - Recent ideas and interests
+   - Upcoming schedule items
+   - User's bio and preferences
+2. Use web search to find high-quality resources that can help users achieve their goals
+3. Maintain a curated list of resources with relevance scores
+4. Update resource relevance based on user engagement and goal progress
+5. Categorize resources appropriately (Article, Video, Course, Tool)
+6. Ensure resources are actionable and directly relevant to user's needs
+
+For resource-related function calls, include:
+- search_web_resources: Search the web for relevant resources
+- create_resource: Create a new resource
+- get_resources: Retrieve a list of resources
+- update_resource: Update an existing resource
+- delete_resource: Delete a resource`
     };
     // Convert chat history to ChatGPT format
     const messages = [
@@ -484,6 +505,110 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
           if (result) {
             goalsDeletions.push(functionArgs.id);
           }
+        } else if (functionName === 'search_web_resources') {
+          const { query, max_results } = JSON.parse(toolCall.function.arguments);
+          const searchResponse = await openai.responses.create({
+            model: 'gpt-4-turbo',
+            input: {
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a helpful assistant that searches the web for relevant resources.'
+                },
+                {
+                  role: 'user',
+                  content: query
+                }
+              ]
+            },
+            tools: [{
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web for information',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    query: {
+                      type: 'string',
+                      description: 'The search query'
+                    }
+                  },
+                  required: ['query']
+                }
+              }
+            }],
+            tool_choice: 'auto'
+          });
+
+          const searchResults = searchResponse.output[0].tool_calls?.[0]?.function?.arguments;
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: functionName,
+            content: JSON.stringify({
+              success: true,
+              results: JSON.parse(searchResults || '[]')
+            })
+          });
+        } else if (functionName === 'create_resource') {
+          const resourceData = JSON.parse(toolCall.function.arguments);
+          const resource = await DatabaseService.createResource(supabase, userId, resourceData);
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: functionName,
+            content: JSON.stringify({
+              success: true,
+              resource
+            })
+          });
+          // Add to updates list if successful
+          if (resource) {
+            resourcesUpdates.push(resource);
+          }
+        } else if (functionName === 'get_resources') {
+          const resources = await DatabaseService.getResources(supabase, userId);
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: functionName,
+            content: JSON.stringify({
+              success: true,
+              resources
+            })
+          });
+        } else if (functionName === 'update_resource') {
+          const { id, ...updates } = JSON.parse(toolCall.function.arguments);
+          const resource = await DatabaseService.updateResource(supabase, userId, id, updates);
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: functionName,
+            content: JSON.stringify({
+              success: true,
+              resource
+            })
+          });
+          // Add to updates list if successful
+          if (resource) {
+            resourcesUpdates.push(resource);
+          }
+        } else if (functionName === 'delete_resource') {
+          const { id } = JSON.parse(toolCall.function.arguments);
+          await DatabaseService.deleteResource(supabase, userId, id);
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: functionName,
+            content: JSON.stringify({
+              success: true
+            })
+          });
+          // Add to deletions list if successful
+          if (id) {
+            resourcesDeletions.push(id);
+          }
         }
         iterations++;
         // Continue the loop unless we've reached some completion criteria
@@ -505,9 +630,11 @@ CRITICAL: When deleting items, always use the specific delete functions (delete_
       scheduleUpdates,
       ideasUpdates,
       goalsUpdates,
+      resourcesUpdates,
       scheduleDeletions,
       ideasDeletions,
       goalsDeletions,
+      resourcesDeletions,
       bioUpdate,
       sessionId,
       // Include retrieved data for display purposes

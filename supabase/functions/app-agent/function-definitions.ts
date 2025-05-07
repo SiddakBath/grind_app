@@ -331,5 +331,117 @@ export const functionDefinitions = [
         'id'
       ]
     }
+  },
+  {
+    name: 'search_web_resources',
+    description: 'Search the web for relevant resources based on user context',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query based on user context'
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum number of results to return',
+          default: 5
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'create_resource',
+    description: 'Create a new resource for the user',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Title of the resource'
+        },
+        url: {
+          type: 'string',
+          description: 'URL of the resource'
+        },
+        description: {
+          type: 'string',
+          description: 'Description of the resource'
+        },
+        category: {
+          type: 'string',
+          enum: ['Article', 'Video', 'Course', 'Tool'],
+          description: 'Category of the resource'
+        },
+        relevance_score: {
+          type: 'number',
+          description: 'Relevance score from 0-100',
+          minimum: 0,
+          maximum: 100
+        }
+      },
+      required: ['title', 'url', 'description', 'category', 'relevance_score']
+    }
+  },
+  {
+    name: 'get_resources',
+    description: 'Retrieve the user\'s resources',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'update_resource',
+    description: 'Update an existing resource',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'ID of the resource to update'
+        },
+        title: {
+          type: 'string',
+          description: 'Updated title'
+        },
+        url: {
+          type: 'string',
+          description: 'Updated URL'
+        },
+        description: {
+          type: 'string',
+          description: 'Updated description'
+        },
+        category: {
+          type: 'string',
+          enum: ['Article', 'Video', 'Course', 'Tool'],
+          description: 'Updated category'
+        },
+        relevance_score: {
+          type: 'number',
+          description: 'Updated relevance score from 0-100',
+          minimum: 0,
+          maximum: 100
+        }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'delete_resource',
+    description: 'Delete a resource',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'ID of the resource to delete'
+        }
+      },
+      required: ['id']
+    }
   }
 ]; 

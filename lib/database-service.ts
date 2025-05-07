@@ -4,6 +4,18 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { ScheduleItem, Idea, Goal } from '@/lib/supabase';
 import { ScheduleUpdate, IdeaUpdate, GoalUpdate } from '@/lib/ai-service';
 
+export interface Resource {
+  id: string;
+  user_id: string;
+  title: string;
+  url: string;
+  description: string;
+  category: 'Article' | 'Video' | 'Course' | 'Tool';
+  relevance_score: number;
+  created_at: string;
+  last_accessed: string;
+}
+
 /**
  * Database service for handling CRUD operations with Supabase
  */

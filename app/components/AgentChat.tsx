@@ -352,6 +352,43 @@ export default function AgentChat({ className }: AgentChatProps) {
         });
       }
       
+      // Add to the handleSubmit function where other updates are processed
+      if (data.resourcesUpdates?.length > 0) {
+        const resourcesMessage: Message = {
+          id: generateId(),
+          role: 'function',
+          name: (data.resourcesUpdates[0].id ? 'update_resource' : 'create_resource'),
+          content: JSON.stringify({ 
+            success: true, 
+            resources: data.resourcesUpdates,
+            count: data.resourcesUpdates.length
+          }),
+          timestamp: new Date()
+        };
+        newMessages.push(resourcesMessage);
+        
+        // Dispatch real-time update event
+        window.dispatchEvent(new CustomEvent(EVENTS.RESOURCES_UPDATED));
+      }
+      
+      if (data.resourcesDeletions?.length > 0) {
+        const resourcesDeletionMessage: Message = {
+          id: generateId(),
+          role: 'function',
+          name: 'delete_resource',
+          content: JSON.stringify({ 
+            success: true, 
+            deletedIds: data.resourcesDeletions,
+            count: data.resourcesDeletions.length
+          }),
+          timestamp: new Date()
+        };
+        newMessages.push(resourcesDeletionMessage);
+        
+        // Dispatch real-time update event
+        window.dispatchEvent(new CustomEvent(EVENTS.RESOURCES_UPDATED));
+      }
+      
       setMessages(prev => [...prev, ...newMessages]);
       
     } catch (error) {
@@ -581,6 +618,35 @@ export default function AgentChat({ className }: AgentChatProps) {
               <div className="text-xs text-muted-foreground">
                 ID: {item.id}
               </div>
+            )}
+          </div>
+        );
+      }
+      
+      // Handle resources
+      if (functionName?.includes('resource') && data.resources) {
+        return (
+          <div className="space-y-1 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+            <div className="font-medium text-sm">{data.count} resource{data.count !== 1 ? 's' : ''}</div>
+            {data.resources?.length > 0 ? (
+              <div className="space-y-1">
+                {data.resources.map((resource: any, i: number) => (
+                  <div key={i} className="bg-black/5 p-1.5 rounded-sm text-xs mt-1">
+                    <div className="text-sm font-medium">{resource.title}</div>
+                    <div className="text-xs text-muted-foreground">{resource.description}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                        {resource.category}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Relevance: {resource.relevance_score}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No resources found</div>
             )}
           </div>
         );

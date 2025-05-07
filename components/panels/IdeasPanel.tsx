@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Lightbulb, Plus, Sparkles, PlusCircle, Maximize2, Trash2 } from 'lucide-react';
+import { Lightbulb, Plus, Sparkles, PlusCircle, Maximize2, Trash2, BookOpen } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils';
 import { DatabaseService } from '@/lib/database-service';
 import { useToast } from '@/hooks/use-toast';
 import { EVENTS } from '@/app/supabase-provider';
+import Resources from '@/app/components/Resources';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSupabase } from '@/app/supabase-provider';
 
 interface Idea {
   id: string;
@@ -32,6 +35,9 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  const { session } = useSupabase();
+  const userId = session?.user?.id;
   
   // Function to load ideas from database
   const loadIdeas = useCallback(async () => {
@@ -253,7 +259,7 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-lg font-medium flex items-center gap-2">
           <Lightbulb className="h-5 w-5" />
-          <span>Ideas</span>
+          <span>Ideas & Resources</span>
         </CardTitle>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
@@ -291,50 +297,67 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
         "flex-1 overflow-y-auto pb-6",
         isExpanded && "px-6"
       )}>
-        {ideas.length > 0 ? (
-          <div className="space-y-4">
-            {ideas.map((idea) => (
-              <div 
-                key={idea.id}
-                className={cn(
-                  "p-3 rounded-lg border border-border/50 transition-all",
-                  "hover:bg-muted/50 hover:border-border",
-                  idea.id === ideas[ideas.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3",
-                  isDeleting === idea.id && "opacity-50"
-                )}
-              >
-                <div className="flex justify-between items-start">
-                  <p className="text-sm">{idea.content}</p>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6 opacity-40 hover:opacity-100"
-                    onClick={() => handleDeleteIdea(idea.id)}
-                    disabled={isDeleting === idea.id}
+        <Tabs defaultValue="ideas" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="ideas" className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4" />
+              Ideas
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              Resources
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="ideas" className="mt-4">
+            {ideas.length > 0 ? (
+              <div className="space-y-4">
+                {ideas.map((idea) => (
+                  <div 
+                    key={idea.id}
+                    className={cn(
+                      "p-3 rounded-lg border border-border/50 transition-all",
+                      "hover:bg-muted/50 hover:border-border",
+                      idea.id === ideas[ideas.length - 1]?.id && activeQuery && "animate-in fade-in-50 slide-in-from-bottom-3",
+                      isDeleting === idea.id && "opacity-50"
+                    )}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span className="sr-only">Delete idea</span>
-                  </Button>
+                    <div className="flex justify-between items-start">
+                      <p className="text-sm">{idea.content}</p>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 opacity-40 hover:opacity-100"
+                        onClick={() => handleDeleteIdea(idea.id)}
+                        disabled={isDeleting === idea.id}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span className="sr-only">Delete idea</span>
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {typeof idea.createdAt === 'string' 
+                        ? new Date(idea.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : idea.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center py-12">
+                <div className="rounded-full bg-primary/10 p-4 mb-4">
+                  <Sparkles className="h-8 w-8 text-primary" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {typeof idea.createdAt === 'string' 
-                    ? new Date(idea.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : idea.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <h3 className="text-xl font-medium mb-2">Inspiration awaits</h3>
+                <p className="text-sm text-muted-foreground max-w-xs">
+                  Chat with the AI to capture your ideas and insights.
                 </p>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center text-center py-12">
-            <div className="rounded-full bg-primary/10 p-4 mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-xl font-medium mb-2">Inspiration awaits</h3>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Chat with the AI to capture your ideas and insights.
-            </p>
-          </div>
-        )}
+            )}
+          </TabsContent>
+          <TabsContent value="resources" className="mt-4">
+            {userId ? <Resources userId={userId} /> : <div className="text-gray-500">Sign in to see resources.</div>}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

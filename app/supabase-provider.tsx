@@ -8,8 +8,9 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export const EVENTS = {
   SCHEDULE_UPDATED: 'schedule-updated',
   IDEAS_UPDATED: 'ideas-updated',
-  GOALS_UPDATED: 'goals-updated'
-};
+  GOALS_UPDATED: 'goals-updated',
+  RESOURCES_UPDATED: 'resources-updated'
+} as const;
 
 interface SupabaseContext {
   supabase: SupabaseClient;
@@ -87,11 +88,26 @@ export default function SupabaseProvider({
       })
       .subscribe();
     
+    const resourcesChannel = supabase
+      .channel('resources-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'resources',
+        filter: `user_id=eq.${session.user.id}`,
+      }, () => {
+        // Dispatch event to notify components of changes
+        const event = new CustomEvent(EVENTS.RESOURCES_UPDATED);
+        window.dispatchEvent(event);
+      })
+      .subscribe();
+    
     // Clean up subscriptions
     return () => {
       scheduleChannel.unsubscribe();
       ideasChannel.unsubscribe();
       goalsChannel.unsubscribe();
+      resourcesChannel.unsubscribe();
     };
   }, [supabase, session]);
 
