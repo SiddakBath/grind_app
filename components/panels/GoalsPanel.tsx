@@ -332,7 +332,7 @@ export function GoalsPanel({ activeQuery, updates = [], isExpanded = false, onEx
             </div>
             <h3 className="text-xl font-medium mb-2">Set your goals</h3>
             <p className="text-sm text-muted-foreground max-w-xs">
-              Tell the AI about goals you'd like to achieve and track your progress.
+              Tell the AI about goals you&apos;d like to achieve and track your progress.
             </p>
           </div>
         )}

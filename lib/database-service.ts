@@ -21,18 +21,32 @@ export interface Resource {
  */
 export const DatabaseService = {
   /**
-   * Save schedule updates to database
+   * Get the current session and user ID
    */
-  async saveScheduleItems(updates: ScheduleUpdate[]): Promise<void> {
+  async getCurrentUser() {
     const supabase = createClientComponentClient();
+    const { data: { session }, error } = await supabase.auth.getSession();
     
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (error) {
+      console.error('Error getting session:', error);
+      throw new Error('Failed to get session');
+    }
+    
+    if (!session?.user) {
       throw new Error('User not authenticated');
     }
     
+    return { session, userId: session.user.id };
+  },
+
+  /**
+   * Save schedule updates to database
+   */
+  async saveScheduleItems(updates: ScheduleUpdate[]): Promise<void> {
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       // Insert each schedule item
       for (const update of updates) {
         // Get current date
@@ -47,8 +61,8 @@ export const DatabaseService = {
         const endTimestamp = `${dateStr}T${endTimeStr}:00.000Z`;
         
         // Save to database
-        await supabase.from('schedule_items').insert({
-          user_id: user.id,
+        const { error } = await supabase.from('schedule_items').insert({
+          user_id: userId,
           title: update.title,
           start_time: startTimestamp,
           end_time: endTimestamp,
@@ -58,6 +72,8 @@ export const DatabaseService = {
           recurrence_rule: update.recurrence_rule,
           type: update.type || 'task'  // Ensure type is set
         });
+
+        if (error) throw error;
       }
     } catch (error) {
       console.error('Error saving schedule items:', error);
@@ -69,21 +85,18 @@ export const DatabaseService = {
    * Save idea updates to database
    */
   async saveIdeas(updates: IdeaUpdate[]): Promise<void> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       // Insert each idea
       for (const update of updates) {
-        await supabase.from('ideas').insert({
-          user_id: user.id,
+        const { error } = await supabase.from('ideas').insert({
+          user_id: userId,
           content: update.content,
         });
+
+        if (error) throw error;
       }
     } catch (error) {
       console.error('Error saving ideas:', error);
@@ -95,25 +108,22 @@ export const DatabaseService = {
    * Save goal updates to database
    */
   async saveGoals(updates: GoalUpdate[]): Promise<void> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       // Insert each goal into the goals table
       for (const update of updates) {
-        await supabase.from('goals').insert({
-          user_id: user.id,
+        const { error } = await supabase.from('goals').insert({
+          user_id: userId,
           title: update.title,
           description: update.description,
           target_date: update.target_date,
           progress: update.progress || 0,
           category: update.category || 'Personal'
         });
+
+        if (error) throw error;
       }
     } catch (error) {
       console.error('Error saving goals:', error);
@@ -125,12 +135,14 @@ export const DatabaseService = {
    * Get schedule items for the current user
    */
   async getScheduleItems(): Promise<ScheduleItem[]> {
-    const supabase = createClientComponentClient();
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { data, error } = await supabase
         .from('schedule_items')
         .select('*')
+        .eq('user_id', userId)
         .order('start_time', { ascending: true });
         
       if (error) throw error;
@@ -138,13 +150,13 @@ export const DatabaseService = {
       return (data || []).map(item => ({
         id: item.id,
         title: item.title,
-        start_time: item.start_time,  // Keep full ISO timestamp
-        end_time: item.end_time,      // Keep full ISO timestamp
+        start_time: item.start_time,
+        end_time: item.end_time,
         description: item.description,
         priority: item.priority,
         all_day: item.all_day,
         recurrence_rule: item.recurrence_rule,
-        type: item.type || 'task',  // Ensure type is set
+        type: item.type || 'task',
         user_id: item.user_id,
         created_at: item.created_at,
         updated_at: item.updated_at
@@ -159,19 +171,14 @@ export const DatabaseService = {
    * Get ideas for the current user
    */
   async getIdeas(): Promise<Idea[]> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { data, error } = await supabase
         .from('ideas')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
         
       if (error) throw error;
@@ -186,19 +193,14 @@ export const DatabaseService = {
    * Get goals for the current user
    */
   async getGoals(): Promise<Goal[]> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { data, error } = await supabase
         .from('goals')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('target_date', { ascending: true });
       
       if (error) throw error;
@@ -213,20 +215,15 @@ export const DatabaseService = {
    * Delete a schedule item for the current user
    */
   async deleteScheduleItem(id: string): Promise<void> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { error } = await supabase
         .from('schedule_items')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
         
       if (error) throw error;
     } catch (error) {
@@ -239,20 +236,15 @@ export const DatabaseService = {
    * Delete a goal for the current user
    */
   async deleteGoal(id: string): Promise<void> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { error } = await supabase
         .from('goals')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
         
       if (error) throw error;
     } catch (error) {
@@ -265,20 +257,15 @@ export const DatabaseService = {
    * Delete an idea for the current user
    */
   async deleteIdea(id: string): Promise<void> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { error } = await supabase
         .from('ideas')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
         
       if (error) throw error;
     } catch (error) {
@@ -291,19 +278,14 @@ export const DatabaseService = {
    * Get user's biography from profiles table
    */
   async getUserBio(): Promise<string> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('bio')
-        .eq('id', user.id)
+        .eq('id', userId)
         .single();
         
       if (error) {
@@ -322,19 +304,14 @@ export const DatabaseService = {
    * Update user's biography in profiles table
    */
   async updateUserBio(bio: string): Promise<void> {
-    const supabase = createClientComponentClient();
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
     try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
       const { error } = await supabase
         .from('profiles')
         .update({ bio })
-        .eq('id', user.id);
+        .eq('id', userId);
         
       if (error) {
         console.error('Error updating user bio:', error);

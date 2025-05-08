@@ -12,6 +12,7 @@ import { EVENTS } from '@/app/supabase-provider';
 import Resources from '@/app/components/Resources';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSupabase } from '@/app/supabase-provider';
+import type { Idea as DbIdea } from '@/lib/supabase';
 
 interface Idea {
   id: string;
@@ -45,7 +46,7 @@ export function IdeasPanel({ activeQuery, updates = [], isExpanded = false, onEx
       setIsLoadingDB(true);
       const items = await DatabaseService.getIdeas();
       // Convert database format to component format
-      const formattedIdeas = items.map(item => ({
+      const formattedIdeas = items.map((item: DbIdea) => ({
         id: item.id,
         content: item.content,
         createdAt: item.created_at

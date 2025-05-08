@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.38.4";
-import OpenAI from 'npm:openai@4.28.0';
+import OpenAI from 'npm:openai@4.97.0';
 import { corsHeaders } from './cors-headers.ts';
 import { DatabaseService } from './database-service.ts';
 import { functionDefinitions } from './function-definitions.ts';
@@ -170,50 +170,53 @@ For resource-related function calls, include:
       // Call OpenAI with the current messages and function definitions
       const response = await openai.responses.create({
         model: 'gpt-4-turbo',
-        input: {
-          messages: [
-            ...messages,
-            ...(iterations === 0 ? [{
-              role: 'system',
-              content: 'Remember to fetch and analyze ALL relevant user data BEFORE making any changes. Always check for conflicts in schedule, contradictory goals, or redundant ideas.'
-            }] : [])
-          ]
-        },
+        input: [
+          ...messages,
+          ...(iterations === 0 ? [{
+            role: 'system',
+            content: 'Remember to fetch and analyze ALL relevant user data BEFORE making any changes. Always check for conflicts in schedule, contradictory goals, or redundant ideas.'
+          }] : [])
+        ],
         tools: functionDefinitions.map(def => ({
+          name: def.name,
           type: 'function',
           function: def
         })),
         tool_choice: 'auto',
         temperature: 0.8, // Slightly increased for more personality
-        response_format: { type: "text" }
+        text: {
+          format: {
+            "type": "text"
+          }
+        }
       });
 
+      console.log(response);
+      console.log(response.output[0]);
       // Get the first response message
       const responseMessage = response.output[0];
       
       // Add the assistant's thinking to our thought log
-      if (responseMessage.content) {
-        thoughts += responseMessage.content + '\n';
+      if (responseMessage.content?.[0]?.text) {
+        const messageText = responseMessage.content[0].text;
+        thoughts += messageText + '\n';
         messages.push({
           role: 'assistant',
-          content: responseMessage.content
+          content: messageText
         });
-        finalResponseMessage = responseMessage.content;
+        finalResponseMessage = messageText;
       }
 
-      // Check if there's a tool call
-      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-        const toolCall = responseMessage.tool_calls[0];
-        const functionName = toolCall.function.name;
-        const functionArgs = functionName.startsWith('get_') ? {} : JSON.parse(toolCall.function.arguments);
+      // Check if there's a function call
+      if (responseMessage.type === 'function_call') {
+        const functionName = responseMessage.name;
+        const functionArgs = functionName.startsWith('get_') ? {} : JSON.parse(responseMessage.arguments || '{}');
         // Handle function calls for data retrieval and updates
         if (functionName === 'get_schedule_items') {
           // Fetch schedule items from the database
           scheduleItems = await DatabaseService.getScheduleItems(supabase, userId);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               scheduleItems: scheduleItems,
@@ -230,9 +233,7 @@ For resource-related function calls, include:
           // Fetch ideas from the database
           ideas = await DatabaseService.getIdeas(supabase, userId);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               ideas: ideas,
@@ -249,9 +250,7 @@ For resource-related function calls, include:
           // Fetch goals from the database
           goals = await DatabaseService.getGoals(supabase, userId);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               goals: goals,
@@ -267,9 +266,7 @@ For resource-related function calls, include:
         } else if (functionName === 'get_user_bio') {
           const userBioResult = await DatabaseService.getUserBio(supabase, userId);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               bio: userBioResult
@@ -286,9 +283,7 @@ For resource-related function calls, include:
         } else if (functionName === 'update_user_bio') {
           const updatedBio = await DatabaseService.updateUserBio(supabase, userId, functionArgs.bio);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!updatedBio,
               bio: updatedBio
@@ -311,9 +306,7 @@ For resource-related function calls, include:
           };
           const result = await DatabaseService.saveScheduleItem(supabase, formattedItem);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!result,
               scheduleItem: result
@@ -339,9 +332,7 @@ For resource-related function calls, include:
           };
           const result = await DatabaseService.saveScheduleItem(supabase, formattedItem);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!result,
               scheduleItem: result
@@ -359,9 +350,7 @@ For resource-related function calls, include:
           };
           const result = await DatabaseService.saveIdea(supabase, formattedIdea);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!result,
               idea: result
@@ -380,9 +369,7 @@ For resource-related function calls, include:
           };
           const result = await DatabaseService.saveIdea(supabase, formattedIdea);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!result,
               idea: result
@@ -399,9 +386,7 @@ For resource-related function calls, include:
           });
           if (goal) {
             messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: functionName,
+              role: 'assistant',
               content: JSON.stringify({
                 success: true,
                 goal: {
@@ -417,9 +402,7 @@ For resource-related function calls, include:
             goalsUpdates.push(goal);
           } else {
             messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: functionName,
+              role: 'assistant',
               content: JSON.stringify({
                 success: false,
                 error: 'Failed to create goal'
@@ -433,9 +416,7 @@ For resource-related function calls, include:
           });
           if (goal) {
             messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: functionName,
+              role: 'assistant',
               content: JSON.stringify({
                 success: true,
                 goal: {
@@ -451,9 +432,7 @@ For resource-related function calls, include:
             goalsUpdates.push(goal);
           } else {
             messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: functionName,
+              role: 'assistant',
               content: JSON.stringify({
                 success: false,
                 error: 'Failed to update goal'
@@ -463,9 +442,7 @@ For resource-related function calls, include:
         } else if (functionName === 'delete_schedule_item') {
           const result = await DatabaseService.deleteScheduleItem(supabase, functionArgs.id);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!result,
               deletedId: functionArgs.id
@@ -478,9 +455,7 @@ For resource-related function calls, include:
         } else if (functionName === 'delete_idea') {
           const result = await DatabaseService.deleteIdea(supabase, functionArgs.id);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!result,
               deletedId: functionArgs.id
@@ -493,9 +468,7 @@ For resource-related function calls, include:
         } else if (functionName === 'delete_goal') {
           const result = await DatabaseService.deleteGoal(supabase, functionArgs.id);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: !!result,
               deletedId: functionArgs.id
@@ -506,7 +479,7 @@ For resource-related function calls, include:
             goalsDeletions.push(functionArgs.id);
           }
         } else if (functionName === 'search_web_resources') {
-          const { query, max_results } = JSON.parse(toolCall.function.arguments);
+          const { query, max_results } = JSON.parse(functionArgs.arguments);
           const searchResponse = await openai.responses.create({
             model: 'gpt-4-turbo',
             input: {
@@ -543,21 +516,17 @@ For resource-related function calls, include:
 
           const searchResults = searchResponse.output[0].tool_calls?.[0]?.function?.arguments;
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               results: JSON.parse(searchResults || '[]')
             })
           });
         } else if (functionName === 'create_resource') {
-          const resourceData = JSON.parse(toolCall.function.arguments);
+          const resourceData = JSON.parse(functionArgs.arguments);
           const resource = await DatabaseService.createResource(supabase, userId, resourceData);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               resource
@@ -570,21 +539,17 @@ For resource-related function calls, include:
         } else if (functionName === 'get_resources') {
           const resources = await DatabaseService.getResources(supabase, userId);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               resources
             })
           });
         } else if (functionName === 'update_resource') {
-          const { id, ...updates } = JSON.parse(toolCall.function.arguments);
+          const { id, ...updates } = JSON.parse(functionArgs.arguments);
           const resource = await DatabaseService.updateResource(supabase, userId, id, updates);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true,
               resource
@@ -595,12 +560,10 @@ For resource-related function calls, include:
             resourcesUpdates.push(resource);
           }
         } else if (functionName === 'delete_resource') {
-          const { id } = JSON.parse(toolCall.function.arguments);
+          const { id } = JSON.parse(functionArgs.arguments);
           await DatabaseService.deleteResource(supabase, userId, id);
           messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: functionName,
+            role: 'assistant',
             content: JSON.stringify({
               success: true
             })
@@ -620,7 +583,7 @@ For resource-related function calls, include:
           // Or if we need to do more operations based on the agent's direction
           || (iterations < maxIterations && iterations >= 2 && !finalResponseMessage);
       } else {
-        // No tool call, so break the loop
+        // No function call, so break the loop
         shouldContinue = false;
       }
     }
