@@ -13,7 +13,7 @@ export interface Resource {
   category: 'Article' | 'Video' | 'Course' | 'Tool';
   relevance_score: number;
   created_at: string;
-  last_accessed: string;
+  updated_at: string;
 }
 
 /**
@@ -320,6 +320,107 @@ export const DatabaseService = {
     } catch (error) {
       console.error('Error updating user bio:', error);
       throw new Error('Failed to update user bio');
+    }
+  },
+
+  /**
+   * Get resources for the current user
+   */
+  async getResources(): Promise<Resource[]> {
+    try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
+      const { data, error } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('user_id', userId)
+        .order('relevance_score', { ascending: false });
+        
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching resources:', error);
+      throw new Error('Failed to fetch resources');
+    }
+  },
+
+  /**
+   * Create a new resource
+   */
+  async createResource(resource: Omit<Resource, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<Resource> {
+    try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
+      const { data, error } = await supabase
+        .from('resources')
+        .insert({
+          user_id: userId,
+          title: resource.title,
+          url: resource.url,
+          description: resource.description,
+          category: resource.category,
+          relevance_score: resource.relevance_score,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating resource:', error);
+      throw new Error('Failed to create resource');
+    }
+  },
+
+  /**
+   * Update an existing resource
+   */
+  async updateResource(id: string, updates: Partial<Omit<Resource, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<Resource> {
+    try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
+      const { data, error } = await supabase
+        .from('resources')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating resource:', error);
+      throw new Error('Failed to update resource');
+    }
+  },
+
+  /**
+   * Delete a resource
+   */
+  async deleteResource(id: string): Promise<void> {
+    try {
+      const { userId } = await this.getCurrentUser();
+      const supabase = createClientComponentClient();
+      
+      const { error } = await supabase
+        .from('resources')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+        
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting resource:', error);
+      throw new Error('Failed to delete resource');
     }
   },
 }; 

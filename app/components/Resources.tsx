@@ -32,7 +32,9 @@ export default function Resources({ userId }: ResourcesProps) {
         .from('resources')
         .select('*')
         .eq('user_id', userId)
-        .order(sortBy === 'relevance' ? 'relevance_score' : 'created_at', { ascending: false });
+        .order(sortBy === 'relevance' ? 'relevance_score' : 'created_at', { 
+          ascending: false 
+        });
 
       if (error) throw error;
       setResources(data || []);
@@ -121,7 +123,7 @@ export default function Resources({ userId }: ResourcesProps) {
                       Relevance: {resource.relevance_score}%
                     </span>
                     <span className="text-xs text-gray-500">
-                      Last accessed: {new Date(resource.last_accessed).toLocaleDateString()}
+                      Added: {new Date(resource.created_at).toLocaleDateString()}
                     </span>
                   </div>
                 </div>

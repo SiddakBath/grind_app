@@ -524,7 +524,13 @@ For resource-related function calls, include:
           });
         } else if (functionName === 'create_resource') {
           const resourceData = JSON.parse(functionArgs.arguments);
-          const resource = await DatabaseService.createResource(supabase, userId, resourceData);
+          const resource = await DatabaseService.createResource(supabase, userId, {
+            title: resourceData.title,
+            url: resourceData.url,
+            description: resourceData.description,
+            category: resourceData.category,
+            relevance_score: resourceData.relevance_score
+          });
           messages.push({
             role: 'assistant',
             content: JSON.stringify({
