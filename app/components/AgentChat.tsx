@@ -723,169 +723,175 @@ export default function AgentChat({ className }: AgentChatProps) {
   };
 
   return (
-    <div className="relative">
-      <div className="absolute -inset-1 bg-gradient-to-r from-blue-300 via-purple-300 to-green-300 dark:from-blue-500 dark:via-purple-500 dark:to-green-500 rounded-xl animate-border bg-[length:400%_400%] opacity-70 blur-[2px] [animation-duration:_12s]"></div>
-      <Card className={cn(
-        "w-full bg-background/60 backdrop-blur-sm shadow-lg transition-all duration-300 hover:shadow-xl rounded-xl overflow-hidden relative z-10",
-        className
-      )}>
-        <CardContent className="p-0">
-          {/* Header */}
-          <div className="p-4 flex justify-between items-center border-b border-border/30">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Bot className="h-5 w-5 text-blue-500" />
-              Agent
-            </h2>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={resetConversation}
-              title="Clear chat"
-              disabled={isLoading || messages.length === 0}
-            >
-              <RefreshCwIcon className="h-4 w-4" />
-            </Button>
-          </div>
-        
-          {/* Empty state */}
-          {messages.length === 0 && (
-            <div className="py-12 flex flex-col items-center justify-center text-center px-4">
-              <div className="mb-4 rounded-full bg-muted/30 p-3 ring-1 ring-border/50">
-                <MessageSquare className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold">How can I help you today?</h3>
-              <p className="text-muted-foreground text-sm max-w-md mt-2">
-                Ask me about scheduling, tasks, ideas, or habits. I can help you manage your time and productivity.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 w-full max-w-2xl">
-                {suggestedPrompts.map((prompt) => (
-                  <Button
-                    key={prompt}
-                    variant="outline"
-                    className="h-auto py-3 px-4 text-sm justify-start truncate overflow-hidden"
-                    onClick={() => {
-                      setInput(prompt);
-                      if (inputRef.current) {
-                        inputRef.current.focus();
-                      }
-                    }}
-                  >
-                    <SearchIcon className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
-                    <span className="truncate">{prompt}</span>
-                  </Button>
-                ))}
-              </div>
+    <div className="w-full">
+      <div className="p-[2px] rounded-xl bg-gradient-to-r from-blue-500/60 via-violet-500/60 to-emerald-500/60 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+        <Card className={cn(
+          "w-full bg-background backdrop-blur-sm transition-all duration-300 rounded-xl overflow-hidden",
+          className
+        )}>
+          <CardContent className="p-0">
+            {/* Header */}
+            <div className="p-4 flex justify-between items-center border-b border-border/30">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Bot className="h-5 w-5 text-blue-500" />
+                Agent
+              </h2>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={resetConversation}
+                title="Clear chat"
+                disabled={isLoading || messages.length === 0}
+              >
+                <RefreshCwIcon className="h-4 w-4" />
+              </Button>
             </div>
-          )}
           
-          {/* Messages */}
-          {messages.length > 0 && (
-            <div ref={containerRef} className="max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 py-6 bg-gradient-to-b from-background/60 to-background space-y-6">
-              {messages.map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className={cn(
-                    "flex",
-                    msg.role === 'user' ? "justify-end" : "justify-start",
-                    "animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm",
-                      msg.role === 'user' 
-                        ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tr-none" 
-                        : msg.role === 'function'
-                          ? "bg-blue-50 dark:bg-blue-900/30 text-foreground rounded-tl-none border border-blue-200 dark:border-blue-800"
-                          : "bg-secondary text-secondary-foreground rounded-tl-none shadow-[0_0_15px_rgba(59,130,246,0.2)] dark:shadow-[0_0_15px_rgba(96,165,250,0.2)]"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className={cn(
-                        "text-sm font-medium",
-                        msg.role === 'user' 
-                          ? "text-gray-700 dark:text-gray-300" 
-                          : msg.role === 'function'
-                            ? "text-blue-800 dark:text-blue-300"
-                            : "text-secondary-foreground"
-                      )}>
-                        {msg.role === 'user' 
-                          ? 'You' 
-                          : msg.role === 'function' 
-                          ? <span className="flex items-center">
-                              <Wrench className="h-3.5 w-3.5 mr-1" />
-                              {msg.name && formatFunctionName(msg.name)}
-                            </span> 
-                          : 'Assistant'
-                        }
-                      </p>
-                      <p className="text-xs opacity-70">
-                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    
-                    {/* Message content */}
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      {msg.role === 'function' ? (
-                        <div className="text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded overflow-x-auto">
-                          {formatFunctionResponse(msg.content, msg.name)}
-                        </div>
-                      ) : (
-                        <div className="text-sm whitespace-pre-wrap">
-                          {formatMessageContent(msg.content)}
-                        </div>
-                      )}
+            {/* Empty state */}
+            {messages.length === 0 && (
+              <div className="py-8 flex flex-col items-center justify-center text-center px-4">
+                <div className="relative mb-4">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500/40 via-violet-500/40 to-emerald-500/40 blur-xl" />
+                  <div className="p-[2px] rounded-full bg-gradient-to-r from-blue-500/60 via-violet-500/60 to-emerald-500/60">
+                    <div className="relative rounded-full bg-background p-3">
+                      <MessageSquare className="h-8 w-8 text-muted-foreground" />
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        
-          {/* Input area */}
-          <div className="p-4 border-t border-border/30 bg-background/80">
-            <form onSubmit={handleSubmit} className="relative">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type your message here..."
-                className={cn(
-                  "w-full min-h-[80px] p-4 pr-14 rounded-xl border border-input",
-                  "bg-background/50 backdrop-blur-sm resize-none",
-                  "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50",
-                  "placeholder:text-muted-foreground transition-all duration-200",
-                  "text-base leading-relaxed shadow-sm"
-                )}
-                disabled={isLoading}
-              />
-              <Button 
-                type="submit"
-                size="icon"
-                className={cn(
-                  "absolute bottom-4 right-4 rounded-full transition-all duration-300",
-                  "bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700",
-                  "text-white shadow-md hover:shadow-lg"
-                )}
-                disabled={isLoading || !input.trim()}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <SendIcon className="h-5 w-5" />
-                )}
-              </Button>
-            </form>
-            {isLoading && (
-              <div className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-2">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Processing your message...
+                <h3 className="text-xl font-semibold">How can I help you today?</h3>
+                <p className="text-muted-foreground text-sm max-w-md mt-2">
+                  Ask me about scheduling, tasks, ideas, or habits. I can help you manage your time and productivity.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 w-full max-w-2xl">
+                  {suggestedPrompts.map((prompt) => (
+                    <Button
+                      key={prompt}
+                      variant="outline"
+                      className="h-auto py-3 px-4 text-sm justify-start truncate overflow-hidden"
+                      onClick={() => {
+                        setInput(prompt);
+                        if (inputRef.current) {
+                          inputRef.current.focus();
+                        }
+                      }}
+                    >
+                      <SearchIcon className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                      <span className="truncate">{prompt}</span>
+                    </Button>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+            
+            {/* Messages */}
+            {messages.length > 0 && (
+              <div ref={containerRef} className="h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 px-4 py-6 bg-gradient-to-b from-background/60 to-background space-y-6">
+                {messages.map((msg) => (
+                  <div 
+                    key={msg.id} 
+                    className={cn(
+                      "flex",
+                      msg.role === 'user' ? "justify-end" : "justify-start",
+                      "animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm",
+                        msg.role === 'user' 
+                          ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tr-none" 
+                          : msg.role === 'function'
+                            ? "bg-blue-50 dark:bg-blue-900/30 text-foreground rounded-tl-none border border-blue-200 dark:border-blue-800"
+                            : "bg-secondary text-secondary-foreground rounded-tl-none"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className={cn(
+                          "text-sm font-medium",
+                          msg.role === 'user' 
+                            ? "text-gray-700 dark:text-gray-300" 
+                            : msg.role === 'function'
+                              ? "text-blue-800 dark:text-blue-300"
+                              : "text-secondary-foreground"
+                        )}>
+                          {msg.role === 'user' 
+                            ? 'You' 
+                            : msg.role === 'function' 
+                            ? <span className="flex items-center">
+                                <Wrench className="h-3.5 w-3.5 mr-1" />
+                                {msg.name && formatFunctionName(msg.name)}
+                              </span> 
+                            : 'Assistant'
+                          }
+                        </p>
+                        <p className="text-xs opacity-70">
+                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      
+                      {/* Message content */}
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        {msg.role === 'function' ? (
+                          <div className="text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded overflow-x-auto">
+                            {formatFunctionResponse(msg.content, msg.name)}
+                          </div>
+                        ) : (
+                          <div className="text-sm whitespace-pre-wrap">
+                            {formatMessageContent(msg.content)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          
+            {/* Input area */}
+            <div className="p-4 border-t border-border/30 bg-background/80">
+              <form onSubmit={handleSubmit} className="relative">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type your message here..."
+                  className={cn(
+                    "w-full min-h-[80px] p-4 pr-14 rounded-xl border border-input",
+                    "bg-background/50 backdrop-blur-sm resize-none",
+                    "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50",
+                    "placeholder:text-muted-foreground transition-all duration-200",
+                    "text-base leading-relaxed shadow-sm"
+                  )}
+                  disabled={isLoading}
+                />
+                <Button 
+                  type="submit"
+                  size="icon"
+                  className={cn(
+                    "absolute bottom-4 right-4 rounded-full transition-all duration-300",
+                    "bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700",
+                    "text-white shadow-md hover:shadow-lg"
+                  )}
+                  disabled={isLoading || !input.trim()}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <SendIcon className="h-5 w-5" />
+                  )}
+                </Button>
+              </form>
+              {isLoading && (
+                <div className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Processing your message...
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
